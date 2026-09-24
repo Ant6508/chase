@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from typing import Callable
 
 from chase.config import ChaseConfig
 from chase.env import ChaseEnv, episode_rngs
@@ -25,7 +26,8 @@ def _percepts(env: ChaseEnv, vis) -> list[Percept]:
             for p in range(env.cfg.n_pursuers)]
 
 
-def run_llm_episode(cfg: ChaseConfig, llm_cfg: LLMConfig, seed: int):
+def run_llm_episode(cfg: ChaseConfig, llm_cfg: LLMConfig, seed: int,
+                     on_step: Callable[[ChaseEnv, LLMPursuers], None] | None = None):
     env = ChaseEnv(cfg)
     env.reset(seed=seed)
     rngs = episode_rngs(seed)
@@ -36,12 +38,16 @@ def run_llm_episode(cfg: ChaseConfig, llm_cfg: LLMConfig, seed: int):
     t0 = time.monotonic()
     vis = env.visibility()
     policy.update(_percepts(env, vis))
+    if on_step:
+        on_step(env, policy)
     while not env.done:
         moves = policy.act(_percepts(env, vis))
         pursuers = [env.pursuer_pos(p) for p in range(cfg.n_pursuers)]
         moves.append(target.act(env.target_pos, vis[env.target_id], pursuers))
         vis = env.step_moves(moves)
         policy.update(_percepts(env, vis))
+        if on_step:
+            on_step(env, policy)
     wall_time_s = time.monotonic() - t0
 
     stats = EpisodeLLMStats.from_steps(policy.step_logs, wall_time_s)
@@ -72,7 +78,15 @@ def main() -> None:
     rows = []
     for seed in range(args.first_seed, args.first_seed + args.episodes):
         t0 = time.monotonic()
-        captured, steps, confinement, stats = run_llm_episode(cfg, llm_cfg, seed)
+
+        on_step = None
+        if args.pilot:
+            def on_step(env, policy, t0=t0):
+                elapsed = time.monotonic() - t0
+                print(f"  pas {env.step_count}/{cfg.max_steps} temps_écoulé={elapsed:.1f}s",
+                      flush=True)
+
+        captured, steps, confinement, stats = run_llm_episode(cfg, llm_cfg, seed, on_step=on_step)
         episode_wall_s = time.monotonic() - t0
         rows.append((seed, captured, steps, confinement, stats, episode_wall_s))
         print(f"seed {seed}: capturé={captured} pas={steps} "

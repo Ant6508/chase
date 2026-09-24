@@ -56,6 +56,17 @@ def test_candidate_cells_bucketed_by_dominant_direction():
     assert "Ensemble candidat total : 4 case(s)." in text
 
 
+def test_diagonal_offset_tie_break_goes_to_north_south():
+    g = _open_room()
+    belief = np.zeros(g.free.shape, dtype=bool)
+    belief[5, 5] = True  # décalage diagonal exact par rapport à (3,3) : dx=2, dy=2
+    text = build_perception((3, 3), g, belief, target_seen=None, track_threshold=8)
+    # À égalité stricte (abs(dy) == abs(dx)), le bucketing compte la case
+    # sous SUD (dy>0), jamais sous EST, par convention.
+    assert "SUD : praticable ; cases candidates de ce côté : 1" in text
+    assert "EST : praticable ; cases candidates de ce côté : 0" in text
+
+
 def test_candidate_list_shown_only_under_threshold():
     g = _open_room()
     below = np.zeros(g.free.shape, dtype=bool)

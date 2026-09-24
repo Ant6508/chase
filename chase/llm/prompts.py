@@ -33,7 +33,10 @@ _LABELS = {Move.NORTH: "NORD", Move.SOUTH: "SUD", Move.EAST: "EST", Move.WEST: "
 
 
 def _bucket(dx: int, dy: int) -> Move:
-    """Direction cardinale dominante d'un décalage relatif (dx, dy)."""
+    """Direction cardinale dominante d'un décalage relatif (dx, dy).
+
+    En cas d'égalité stricte (abs(dy) == abs(dx), décalage diagonal), la
+    convention retenue est de trancher vers NORD/SUD plutôt que EST/OUEST."""
     if abs(dy) >= abs(dx):
         return Move.SOUTH if dy > 0 else Move.NORTH
     return Move.EAST if dx > 0 else Move.WEST

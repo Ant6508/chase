@@ -28,6 +28,16 @@ def _no_tool_call_response():
     return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None)
 
 
+def _tool_call_response_no_usage(direction: str, reasoning: str = "parce que"):
+    """Appel d'outil valide sans statistiques d'usage (certains serveurs
+    compatibles OpenAI, dont potentiellement LM Studio, omettent `usage`
+    même sur une réponse bien formée)."""
+    call = SimpleNamespace(function=SimpleNamespace(
+        arguments=json.dumps({"direction": direction, "reasoning": reasoning})))
+    message = SimpleNamespace(tool_calls=[call])
+    return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None)
+
+
 class _FakeCompletions:
     def __init__(self, responses):
         self._responses = list(responses)
@@ -76,6 +86,16 @@ def test_decide_retries_then_succeeds():
     assert result.move == Move.EAST
     assert result.retries == 1
     assert result.fallback is False
+
+
+def test_decide_handles_missing_usage_on_success():
+    fake = _FakeOpenAI([_tool_call_response_no_usage("SOUTH", "cible au sud")])
+    client = LMStudioClient(CFG, client=fake)
+    result = client.decide("système", "perception")
+    assert result.move == Move.SOUTH
+    assert result.fallback is False
+    assert result.prompt_tokens == 0
+    assert result.completion_tokens == 0
 
 
 def test_decide_falls_back_after_exhausting_retries():

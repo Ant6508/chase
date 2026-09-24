@@ -3,8 +3,9 @@
 Environnement de poursuite coopérative en observabilité partielle. La
 spécification figée est dans [`SPEC.md`](SPEC.md). Ce dépôt contient le
 **jalon 1** : simulateur et heuristiques scriptées R0/R1/R2, sans aucun LLM.
-Les résultats et les paramètres retenus sont dans
-[`results/jalon1.md`](results/jalon1.md).
+Le jalon est franchi, avec R1 figé à 52 % de capture et R2 à 92 %.
+Les résultats, les paramètres figés et la justification de l'écart à la
+fenêtre 30–40 % visée pour R1 sont dans [`results/jalon1.md`](results/jalon1.md).
 
 ## Installation et exécution
 

@@ -10,6 +10,9 @@ class LLMConfig:
     base_url: str = "http://localhost:1234/v1"
     model: str = "google/gemma-4-12b"
     temperature: float = 0.0
-    max_tokens: int = 150      # budget de raisonnement, identique pour A1/A2/A3
+    max_tokens: int = 700      # budget de raisonnement, identique pour A1/A2/A3 ;
+                               # calibré empiriquement (Task 7) contre google/gemma-4-12b,
+                               # dont le raisonnement interne consomme la majorité du budget
+                               # avant l'appel d'outil (150 était insuffisant : finish_reason="length")
     timeout_s: float = 30.0
     max_retries: int = 2       # tentatives supplémentaires après le premier essai

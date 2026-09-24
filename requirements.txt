@@ -1,0 +1,5 @@
+# MultiGrid épinglé sur un commit précis : le simulateur en dépend pour la
+# grille, le rendu et le masque de visibilité avec occultation.
+multigrid @ git+https://github.com/ini/multigrid@6f46215f9fe251d92ca2e51cae8baa1780dbd1b3
+numpy>=1.24
+pytest>=7

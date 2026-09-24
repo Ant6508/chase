@@ -89,7 +89,7 @@ class LMStudioClient:
                         {"role": "user", "content": user_prompt},
                     ],
                     tools=[_MOVE_TOOL],
-                    tool_choice={"type": "function", "function": {"name": "move"}},
+                    tool_choice="required",
                 )
             except Exception as exc:
                 last_error = exc

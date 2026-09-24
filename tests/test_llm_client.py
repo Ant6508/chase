@@ -74,7 +74,7 @@ def test_decide_forces_the_move_tool():
     client.decide("système", "perception")
     kwargs = fake.chat.completions.calls[0]
     assert kwargs["tools"] == [_MOVE_TOOL]
-    assert kwargs["tool_choice"] == {"type": "function", "function": {"name": "move"}}
+    assert kwargs["tool_choice"] == "required"
     assert kwargs["temperature"] == CFG.temperature
     assert kwargs["max_tokens"] == CFG.max_tokens
 

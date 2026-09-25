@@ -1,8 +1,16 @@
-"""Bras A1 (jalon 2) : pilote de mesure puis campagne contre LM Studio.
+"""Bras A1 (jalon 2) : pilote de mesure puis campagne contre LM Studio (pod RunPod).
 
     python -m scripts.run_llm --pilot --episodes 1
-    python -m scripts.run_llm --episodes 30 --out results/jalon2_a1.md
+    python -m scripts.run_llm --pilot --episodes 16 --concurrency 16
+    python -m scripts.run_llm --episodes 30 --concurrency 24 --out results/jalon2_a1.md
     python -m scripts.run_llm --pilot --episodes 2 --set max_steps=60 size=15
+
+--concurrency > 1 exécute plusieurs épisodes en parallèle (threads), chacun
+avec son propre ChaseEnv (aucun état partagé) — c'est le levier qui exploite
+les créneaux concurrents du serveur LM Studio (voir design doc § Exécution
+parallèle de la campagne). --concurrency 1 (défaut) reste séquentiel. La
+progression par pas (--pilot) n'est affichée qu'en séquentiel : au-delà, les
+lignes de plusieurs épisodes s'entrelaceraient sans rien apporter.
 """
 
 from __future__ import annotations
@@ -10,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
 
 from chase.config import ChaseConfig
@@ -69,18 +78,20 @@ def main() -> None:
     parser.add_argument("--set", nargs="*", default=[], help="surcharges clé=valeur de ChaseConfig")
     parser.add_argument("--pilot", action="store_true",
                         help="affiche le temps par épisode/appel sans écrire de tableau")
+    parser.add_argument("--concurrency", type=int, default=1,
+                        help="épisodes exécutés en parallèle (threads) ; 1 = séquentiel")
     parser.add_argument("--out", help="écrit le tableau Markdown dans ce fichier")
     args = parser.parse_args()
 
     cfg = ChaseConfig().replace(**_parse_overrides(args.set))
     llm_cfg = LLMConfig()
+    seeds = list(range(args.first_seed, args.first_seed + args.episodes))
 
-    rows = []
-    for seed in range(args.first_seed, args.first_seed + args.episodes):
+    def _run_one(seed: int):
         t0 = time.monotonic()
 
         on_step = None
-        if args.pilot:
+        if args.pilot and args.concurrency == 1:
             def on_step(env, policy, t0=t0):
                 elapsed = time.monotonic() - t0
                 print(f"  pas {env.step_count}/{cfg.max_steps} temps_écoulé={elapsed:.1f}s",
@@ -88,10 +99,21 @@ def main() -> None:
 
         captured, steps, confinement, stats = run_llm_episode(cfg, llm_cfg, seed, on_step=on_step)
         episode_wall_s = time.monotonic() - t0
-        rows.append((seed, captured, steps, confinement, stats, episode_wall_s))
         print(f"seed {seed}: capturé={captured} pas={steps} "
               f"temps={episode_wall_s:.1f}s latence_moy={stats.mean_latency_ms:.0f}ms "
               f"replis={stats.fallback_count}", flush=True)
+        return seed, captured, steps, confinement, stats, episode_wall_s
+
+    rows = []
+    if args.concurrency <= 1:
+        for seed in seeds:
+            rows.append(_run_one(seed))
+    else:
+        with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
+            futures = [pool.submit(_run_one, seed) for seed in seeds]
+            for future in as_completed(futures):
+                rows.append(future.result())
+        rows.sort(key=lambda r: r[0])  # l'ordre de complétion n'est pas l'ordre des seeds
 
     if args.pilot:
         return

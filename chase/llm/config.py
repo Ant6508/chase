@@ -13,7 +13,7 @@ class LLMConfig:
     base_url: str = "https://jhbk30ligdrozo-1234.proxy.runpod.net/v1"
     model: str = "gemma-4-12b-a1"
     temperature: float = 0.0
-    max_tokens: int = 1300     # budget de raisonnement, identique pour A1/A2/A3 ;
+    max_tokens: int = 1600     # budget de raisonnement, identique pour A1/A2/A3 ;
                                # recalibré empiriquement contre le pod RunPod (700 laissait 53,6 %
                                # des appels du pilote finir en finish_reason="length",
                                # reasoning_content seul consommant 697-700/700 tokens sans jamais
@@ -21,8 +21,12 @@ class LLMConfig:
                                # /root/.lmstudio/server-logs/). Rejouer le prompt exact d'un échec
                                # avec max_tokens=3000 converge à 875 tokens : ce n'est pas une
                                # boucle infinie, juste un budget trop court pour les cas les plus
-                               # chargés. 1300 laisse une marge confortable au-dessus de ce
-                               # maximum observé.
+                               # chargés. 1300 donnait 0 replis en séquentiel mais 2,5 % (24/960)
+                               # sous concurrence à 8 — le calcul par lots (continuous batching)
+                               # change légèrement l'ordre des opérations flottantes selon la
+                               # composition du lot, donc un même prompt peut générer un peu plus
+                               # de tokens sous charge qu'isolé. 1600 ajoute de la marge pour ce
+                               # cas, à valider par un nouveau pilote concurrent.
     timeout_s: float = 180.0   # calibré empiriquement (Task 7, LM Studio local) : un timeout
                                # trop court fait retenter côté client sans annuler la requête
                                # côté serveur, ce qui empile des requêtes fantômes et effondre la

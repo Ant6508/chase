@@ -17,12 +17,43 @@ action), sans la complexité du canal de message. A2/A3 réutiliseront cette bas
 et ajouteront le canal une fois qu'on sait que le modèle choisi tient la boucle
 seule.
 
-**Modèle** : local, servi par LM Studio (API compatible OpenAI) sur
-`http://localhost:1234/v1`, modèle `google/gemma-4-12b` (GGUF, Q6_K), contexte
-chargé à 13056 tokens, capacité `tool_use` confirmée (function calling). Repli
-possible sur RunPod si les résultats locaux ne sont pas probants — hors
-périmètre de ce document, à traiter comme un changement de configuration du
-client LLM, pas d'architecture.
+**Modèle** : servi par LM Studio headless (API compatible OpenAI), modèle
+`google/gemma-4-12b` (GGUF, Q6_K), capacité `tool_use` confirmée (function
+calling). **Décision du 2026-09-25 : hébergé sur un pod RunPod plutôt qu'en
+local**, exactement comme anticipé ci-dessus — même client, même modèle, seul
+`base_url` change (voir Configuration). Justification : ne pas monopoliser la
+machine locale pour une campagne de ≥ 30 épisodes × plusieurs centaines
+d'appels, et exploiter le crédit RunPod disponible.
+
+- Pod `jhbk30ligdrozo` (RTX 4090 24 Go, secure cloud, 0,74 $/h, DC EU-RO-1).
+- `base_url` : `https://jhbk30ligdrozo-1234.proxy.runpod.net/v1`.
+- `model` (identifiant exact chargé côté serveur) : `gemma-4-12b-a1`.
+- **Le pod n'a pas de coupure automatique** : `runpodctl` v2.12.0 n'expose
+  aucun `--terminate-after`/`--stop-after` sur `pod create`/`pod update`, et
+  l'API REST v2 n'a pas non plus de champ d'arrêt programmé. Il facture en
+  continu tant qu'il n'est pas arrêté/supprimé manuellement
+  (`pod-action` → `stop` ou `terminate`). À couper explicitement en fin de
+  session de travail.
+- Concurrence GPU : `lms load` supporte `--parallel N` (continuous batching
+  llama.cpp), un seul serveur suffit — pas besoin de plusieurs instances.
+  Chargé avec `--gpu max --context-length 81920 --parallel 32`, ce qui occupe
+  ~89,7 % de la VRAM (22 Go / 24,5 Go) de façon stable. Vérifié en conditions
+  réelles : 32 appels `move` forcés simultanés → 13,5 s (32/32 valides) contre
+  ~80 s en séquentiel, soit ~5,9×. Le harnais LLM (`scripts/run_llm.py`) doit
+  donc envoyer ses appels **en parallèle** (pool de ~32 requêtes concurrentes)
+  vers ce **seul** `base_url`, pas de round-robin entre plusieurs endpoints.
+- **Écart avec l'API OpenAI standard** : LM Studio rejette la forme objet de
+  `tool_choice` (`{"type":"function","function":{"name":"move"}}` →
+  `400 Invalid tool_choice type: 'object'`). Utiliser la forme chaîne
+  `tool_choice: "required"` à la place — équivalent ici puisqu'un seul outil
+  (`move`) est exposé, mais **le code client (`chase/llm/client.py`) et son
+  test (`test_decide_forces_the_move_tool`) doivent être écrits contre cette
+  forme, pas celle de la spec OpenAI générique.**
+- Le modèle émet un champ `reasoning_content` (chaîne de pensée) avant l'appel
+  d'outil, qui consomme une partie du budget `max_tokens` : mesuré à 99/142
+  tokens de complétion sur l'appel de vérification. Sous le budget par défaut
+  de 150 (§ Configuration), mais à surveiller au pilote (Task 7) avec de vrais
+  prompts de perception, plus longs que le test de vérification.
 
 ## Objectif du sous-projet
 
@@ -40,10 +71,13 @@ stable pour A2/A3).
   `chase/graph.py`, `chase/target.py` : jalon 1 figé (SPEC §6).
 - Comparaison chiffrée A1 vs R1/R2 dans ce document : viendra avec le rapport
   du jalon 2, pas avec ce design.
-- Support d'un fournisseur LLM distant (RunPod, API Anthropic) : le client est
-  écrit contre l'API compatible OpenAI de LM Studio ; un autre fournisseur est
-  un changement de configuration/implémentation de client ultérieur, pas traité
-  ici.
+- Support d'un fournisseur LLM fondamentalement différent (API Anthropic,
+  OpenAI hébergé, vLLM/TGI) : le client reste écrit contre l'API compatible
+  OpenAI de LM Studio ; changer de fournisseur serait un changement de
+  client ultérieur, pas traité ici. Héberger ce même serveur LM Studio sur un
+  pod RunPod loué plutôt qu'en local n'est qu'un changement d'adresse
+  (`base_url`/`model`), déjà traité ci-dessus (§ Modèle), pas un changement de
+  fournisseur.
 
 ## Architecture
 
@@ -66,11 +100,19 @@ prend déjà une `PursuerPolicy` en paramètre.
 
 ### `chase/llm/client.py`
 
-- SDK `openai` pointé sur `base_url="http://localhost:1234/v1"`
-  (`api_key` factice, requis par le SDK mais ignoré par LM Studio).
+- SDK `openai` pointé sur `base_url` du pod RunPod (voir § Modèle ; `api_key`
+  factice, requis par le SDK mais ignoré par LM Studio).
 - Un seul outil exposé : `move(direction: enum[STAY,NORTH,SOUTH,EAST,WEST], reasoning: string)`.
   `tool_choice` forcé sur cette fonction : le modèle ne peut pas répondre en
-  texte libre hors du schéma.
+  texte libre hors du schéma. **Forme exacte : `tool_choice="required"`**
+  (chaîne, pas l'objet `{"type":"function","function":{"name":"move"}}` de la
+  spec OpenAI générique — LM Studio le rejette avec `400`, voir § Modèle).
+  Équivalent ici puisqu'un seul outil est déclaré.
+- Le SDK `openai` est thread-safe pour des appels concurrents (chaque
+  `chat.completions.create` est indépendant) : c'est ce qui permet la
+  parallélisation décrite en § Exécution parallèle de la campagne, sans
+  changement à `client.py` lui-même — la concurrence se pilote depuis
+  `policy.py` (deux poursuivants) et `scripts/run_llm.py` (plusieurs épisodes).
 - `temperature=0` par défaut (reproductibilité à seed égale — nécessaire pour
   que les comparaisons entre bras et entre runs restent interprétables).
 - Budget de raisonnement : `max_tokens` sur la réponse complète (outil +
@@ -129,7 +171,12 @@ prend déjà une `PursuerPolicy` en paramètre.
   comme la branche `fused=False` de `GreedyPursuers.update`.
 - `act(percepts)` : pour chaque poursuivant, construit le prompt via
   `prompts.py`, appelle `client.py`, journalise le résultat, retourne la
-  liste de `Move`.
+  liste de `Move`. Reste **séquentiel** sur les 2 poursuivants (inchangé) : la
+  parallélisation se fait au niveau des épisodes, pas des poursuivants (voir
+  § Exécution parallèle de la campagne) — inutile de complexifier `act()` et
+  la synchronisation des `step_logs`/tests pour un gain borné à 2× quand le
+  parallélisme inter-épisodes donne déjà le facteur mesuré (~5-6× à 32
+  requêtes simultanées) sans toucher à l'ordonnancement interne d'un épisode.
 - `beliefs()` : renvoie les croyances individuelles (réutilisé par les tests
   d'invariant existants, sur le modèle de `tests/test_chase.py`).
 
@@ -148,6 +195,35 @@ coût de communication existe déjà, à 0 pour A1) :
 Pas de nouvelle classe de résultat : on étend `EpisodeResult` (ou on
 l'enveloppe) plutôt que de dupliquer les champs de `chase/runner.py`.
 
+## Exécution parallèle de la campagne
+
+Objectif : maximiser les épisodes traités par heure de pod louée (0,74 $/h),
+donc le débit vers le serveur LM Studio à 32 créneaux concurrents (§ Modèle),
+plutôt que de laisser le GPU idle entre deux appels séquentiels.
+
+Un seul niveau de parallélisme, au niveau des épisodes
+(`scripts/run_llm.py`) : plusieurs épisodes tournent en parallèle, chacun
+dans son propre thread avec son propre `ChaseEnv` (aucun état partagé entre
+épisodes, seeds différentes) et sa propre boucle séquentielle (2 appels
+poursuivants par pas, `act()` inchangé — voir § `policy.py`).
+`ThreadPoolExecutor` avec un nombre de workers configurable (`--concurrency`,
+défaut à fixer au pilote, ordre de grandeur 16–32 : chaque épisode ne
+consomme qu'un créneau à la fois puisque `act()` reste séquentiel).
+
+Pas de parallélisme intra-épisode (entre les 2 poursuivants d'un même pas) :
+inutile pour saturer les 32 créneaux du serveur, et ça éviterait de
+complexifier `act()`/ses tests (ordonnancement des `step_logs`, thread-safety
+du faux client) pour un gain marginal que le parallélisme inter-épisodes
+couvre déjà.
+
+Un seul `base_url` (le pod), pas de round-robin entre plusieurs endpoints —
+confirmé au provisioning : un unique serveur avec `--parallel 32` sature déjà
+~90 % de la VRAM disponible, pas besoin de plusieurs instances LM Studio.
+
+Le calcul des métriques par épisode (`EpisodeLLMStats`) ne change pas : chaque
+épisode reste agrégé indépendamment, la parallélisation ne touche que
+l'ordonnancement, pas le contenu des logs.
+
 ## Configuration
 
 Deux dataclasses séparées, pour ne pas mélanger règles du jeu et
@@ -160,9 +236,9 @@ configuration du client LLM :
   (README + résultats), pas laissées en paramètre libre.
 - `LLMConfig` (nouveau, `chase/llm/client.py` ou `chase/llm/config.py`) :
   `base_url`, `model`, `temperature`, `max_tokens` (budget de raisonnement),
-  `timeout_s`, `max_retries`. Valeurs par défaut correspondant à la config
-  actuelle de LM Studio observée (`http://localhost:1234/v1`,
-  `google/gemma-4-12b`).
+  `timeout_s`, `max_retries`. Valeurs par défaut correspondant au pod RunPod
+  en place (§ Modèle) : `base_url="https://jhbk30ligdrozo-1234.proxy.runpod.net/v1"`,
+  `model="gemma-4-12b-a1"`.
 
 `requirements.txt` gagne une dépendance : `openai` (client compatible avec
 l'API exposée par LM Studio).
@@ -212,21 +288,32 @@ pas faire perdre les épisodes déjà calculés dans un run parallèle.
   - Les champs de log attendus sont tous présents et du bon type.
 - **Validation contre le vrai modèle (script séparé, pas dans `pytest`)** :
   un script pilote (`scripts/run_llm.py --pilot`, ou option dédiée) qui lance
-  1 à 3 épisodes réels contre LM Studio, mesure le temps par appel et par
-  épisode, et sert à fixer le profil `ChaseConfig` du jalon 2 avant de lancer
-  la campagne complète (≥ 30 épisodes par point, comme les autres bras).
+  1 à 3 épisodes réels contre le pod RunPod, mesure le temps par appel et par
+  épisode (séquentiel puis à la concurrence cible), et sert à fixer le profil
+  `ChaseConfig` et `--concurrency` du jalon 2 avant de lancer la campagne
+  complète (≥ 30 épisodes par point, comme les autres bras).
 
 ## Plan de validation (avant la campagne complète)
 
-1. Pilote 1 à 3 épisodes sur le profil de config par défaut du jalon 1 (ou un
-   profil réduit de départ), mesure du temps réel par appel/épisode.
+1. Pilote 1 à 3 épisodes **séquentiels** sur le profil de config par défaut du
+   jalon 1 (ou un profil réduit de départ), mesure du temps réel par
+   appel/épisode contre le pod RunPod.
 2. Ajustement du profil `ChaseConfig` du jalon 2 (grille/`max_steps`) pour que
    la campagne complète (≥ 30 épisodes, comme R0/R1/R2) reste dans un temps
-   raisonnable sur le GPU local.
+   raisonnable.
 3. Ajustement éventuel du budget de raisonnement (`max_tokens`) si 150 s'avère
-   trop court pour obtenir un appel d'outil valide de façon fiable.
-4. Une fois les paramètres stables : campagne complète A1, résultats et
-   paramètres figés et versionnés (même traitement que `results/jalon1.md`).
+   trop court pour obtenir un appel d'outil valide de façon fiable — à
+   surveiller en particulier à cause de `reasoning_content` (§ Modèle).
+4. Pilote **concurrent** (`--concurrency`, quelques épisodes en parallèle) :
+   confirmer que le débit augmente bien comme mesuré au provisioning (~5-6× à
+   32 requêtes simultanées) sans dégrader le taux de `fallback`, et choisir la
+   valeur de `--concurrency` retenue pour la campagne complète.
+5. Une fois les paramètres stables (config jeu + LLM + concurrence) : campagne
+   complète A1, résultats et paramètres figés et versionnés (même traitement
+   que `results/jalon1.md`).
+6. **Couper le pod** (`pod-action` → `stop` ou `terminate`) une fois la
+   campagne terminée ou en fin de session de travail — pas de coupure
+   automatique (§ Modèle).
 
 ## Points ouverts pour A2/A3 (non traités ici)
 

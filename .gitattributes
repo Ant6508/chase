@@ -1,0 +1,2 @@
+# Les scripts shell tournent sur le pod (Linux) : bash refuse les fins de ligne CRLF
+*.sh text eol=lf

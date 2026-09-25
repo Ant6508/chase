@@ -7,10 +7,12 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class LLMConfig:
-    # Pod RunPod jhbk30ligdrozo (RTX 4090, LM Studio headless, --parallel 32) ;
-    # remplace le LM Studio local du pilote initial — même client, seule l'adresse
-    # change (décision du 2026-09-25, voir design doc § Modèle).
-    base_url: str = "https://jhbk30ligdrozo-1234.proxy.runpod.net/v1"
+    # Pod RunPod 98ul7bu4hujxfw (RTX 3090 24 Go, LM Studio headless, --parallel 32),
+    # successeur du pod RTX 4090 jhbk30ligdrozo (plus de 4090 disponible le
+    # 2026-09-25) ; remplace le LM Studio local du pilote initial — même client,
+    # seule l'adresse change (voir design doc § Modèle). Sur le pod lui-même, la
+    # campagne vise 127.0.0.1 via --base-url (scripts/pod/campaign.sh).
+    base_url: str = "https://98ul7bu4hujxfw-1234.proxy.runpod.net/v1"
     model: str = "gemma-4-12b-a1"
     temperature: float = 0.0
     max_tokens: int = 1600     # budget de raisonnement, identique pour A1/A2/A3 ;

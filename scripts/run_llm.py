@@ -11,6 +11,12 @@ les créneaux concurrents du serveur LM Studio (voir design doc § Exécution
 parallèle de la campagne). --concurrency 1 (défaut) reste séquentiel. La
 progression par pas (--pilot) n'est affichée qu'en séquentiel : au-delà, les
 lignes de plusieurs épisodes s'entrelaceraient sans rien apporter.
+
+--journal écrit chaque épisode dans un fichier JSONL dès qu'il se termine ;
+relancer la même commande avec le même journal ne rejoue que les seeds
+manquantes (un run tué ne perd que ses épisodes en cours). --base-url vise un
+autre serveur que celui de LLMConfig, par ex. http://127.0.0.1:1234/v1 quand
+le script tourne sur le pod lui-même (voir scripts/pod/).
 """
 
 from __future__ import annotations
@@ -19,11 +25,13 @@ import argparse
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, replace
 from typing import Callable
 
 from chase.config import ChaseConfig
 from chase.env import ChaseEnv, episode_rngs
 from chase.llm.config import LLMConfig
+from chase.llm.journal import EpisodeJournal
 from chase.llm.logging import EpisodeLLMStats
 from chase.llm.policy import LLMPursuers
 from chase.policies import Percept
@@ -81,11 +89,28 @@ def main() -> None:
     parser.add_argument("--concurrency", type=int, default=1,
                         help="épisodes exécutés en parallèle (threads) ; 1 = séquentiel")
     parser.add_argument("--out", help="écrit le tableau Markdown dans ce fichier")
+    parser.add_argument("--journal",
+                        help="JSONL : un épisode par ligne dès qu'il se termine ; reprise si existant")
+    parser.add_argument("--base-url", help="serveur LM Studio (défaut : LLMConfig.base_url)")
     args = parser.parse_args()
 
     cfg = ChaseConfig().replace(**_parse_overrides(args.set))
     llm_cfg = LLMConfig()
+    if args.base_url:
+        llm_cfg = replace(llm_cfg, base_url=args.base_url)
     seeds = list(range(args.first_seed, args.first_seed + args.episodes))
+
+    journal = None
+    done: dict[int, dict] = {}
+    if args.journal:
+        # l'adresse du serveur n'entre pas dans les paramètres : même modèle en local
+        # ou sur le pod, un run peut reprendre de l'un à l'autre
+        llm_params = {k: v for k, v in asdict(llm_cfg).items() if k != "base_url"}
+        journal = EpisodeJournal(args.journal, {"game": cfg.as_dict(), "llm": llm_params})
+        done = {s: r for s, r in journal.completed().items() if s in seeds}
+        if done:
+            print(f"reprise : {len(done)} épisode(s) déjà dans {args.journal}, "
+                  f"{len(seeds) - len(done)} à jouer", flush=True)
 
     def _run_one(seed: int):
         t0 = time.monotonic()
@@ -99,21 +124,28 @@ def main() -> None:
 
         captured, steps, confinement, stats = run_llm_episode(cfg, llm_cfg, seed, on_step=on_step)
         episode_wall_s = time.monotonic() - t0
+        if journal:
+            journal.append({"seed": seed, "captured": captured, "steps": steps,
+                            "confinement": confinement, "wall_time_s": episode_wall_s,
+                            "stats": asdict(stats)})
         print(f"seed {seed}: capturé={captured} pas={steps} "
               f"temps={episode_wall_s:.1f}s latence_moy={stats.mean_latency_ms:.0f}ms "
               f"replis={stats.fallback_count}", flush=True)
         return seed, captured, steps, confinement, stats, episode_wall_s
 
-    rows = []
+    rows = [(s, r["captured"], r["steps"], r["confinement"], EpisodeLLMStats(**r["stats"]),
+             r["wall_time_s"]) for s, r in done.items()]
+    todo = [seed for seed in seeds if seed not in done]
     if args.concurrency <= 1:
-        for seed in seeds:
+        for seed in todo:
             rows.append(_run_one(seed))
     else:
         with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
-            futures = [pool.submit(_run_one, seed) for seed in seeds]
+            futures = [pool.submit(_run_one, seed) for seed in todo]
             for future in as_completed(futures):
                 rows.append(future.result())
-        rows.sort(key=lambda r: r[0])  # l'ordre de complétion n'est pas l'ordre des seeds
+    # ni l'ordre de complétion ni celui de la reprise ne sont l'ordre des seeds
+    rows.sort(key=lambda r: r[0])
 
     if args.pilot:
         return

@@ -165,7 +165,17 @@ prend déjà une `PursuerPolicy` en paramètre.
     pas l'information de chemin dont une bonne politique se sert. Avec le
     format actuel, R1 part vers une issue annoncée avec des candidates dans
     99 % des cas (cible cachée) et vers l'issue annoncée dans 100 % des cas
-    (cible visible). Le changement ne touche que le harnais LLM : ni les
+    (cible visible). Contre le modèle (LM Studio local, mêmes réglages que la
+    campagne), sur 10 situations tirées des parties de R1 (5 cible visible
+    dans les quatre directions, dont une où le chemin ne part pas dans la
+    direction à vol d'oiseau ; 5 cible cachée avec au moins une issue sans
+    candidate) : une issue qui mène au plus court vers des candidates
+    **4 fois sur 10 avec l'ancien format** (dont 2 replis sur `STAY`, faute
+    d'appel d'outil valide, et les deux cibles dans l'axe nord/sud prises à
+    l'envers), **10 fois sur 10 avec le nouveau**, pour 359 tokens de
+    complétion en moyenne contre 621. Essai ponctuel non versionné : il
+    montre que le modèle lit correctement la perception, pas qu'il tient une
+    stratégie de recherche sur un épisode. Le changement ne touche que le harnais LLM : ni les
     règles, ni la croyance, ni l'information disponible (le poursuivant
     connaît déjà la carte) ne changent.
   - La croyance utilisée est la **croyance individuelle** du poursuivant

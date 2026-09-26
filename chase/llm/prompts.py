@@ -12,6 +12,13 @@ hasard (results/jalon2_a1.md) :
 - les cases candidates sont comptées par issue, en distance de chemin, et non
   plus par direction à vol d'oiseau. Dans un labyrinthe fait de couloirs, la
   direction la plus chargée à vol d'oiseau était un mur une fois sur deux.
+
+La deuxième campagne (results/jalon2_a1v2.md) a ajouté la part de probabilité
+par issue. Sans elle, la case qu'on vient de quitter, sortie du champ de vision
+orienté, redevenait « la candidate la plus proche, à 1 pas », et le poursuivant
+faisait l'aller-retour une fois sur deux. La carte est celle de R1
+(belief.diffuse / observe_prob) : le harnais fait le calcul probabiliste, le
+LLM décide.
 """
 
 from __future__ import annotations
@@ -42,6 +49,12 @@ candidates tu atteins au plus court en partant par là, et à combien de pas se 
 trouve la plus proche. Une case aussi proche par deux directions compte pour \
 les deux.
 
+Chaque direction indique aussi la part de probabilité que la cible soit de ce \
+côté, en supposant qu'elle se déplace au hasard depuis tes dernières \
+observations. Une case que tu viens de voir vide redevient candidate dès que \
+tu ne la vois plus, mais avec une probabilité presque nulle. Une case aussi \
+proche par deux directions partage sa probabilité entre elles.
+
 Réponds uniquement en appelant l'outil `move` avec la direction choisie et une \
 justification brève."""
 
@@ -64,10 +77,16 @@ def _cardinal(dx: int, dy: int) -> str:
     return " et ".join(parts)
 
 
+def _pct(p: float) -> str:
+    v = round(100 * p)
+    return "moins de 1 %" if v == 0 and p > 0 else f"{v} %"
+
+
 def build_perception(pos: tuple[int, int], g: MazeGraph, belief: np.ndarray,
-                      target_seen: tuple[int, int] | None,
+                      prob: np.ndarray, target_seen: tuple[int, int] | None,
                       track_threshold: int) -> str:
-    """Résumé structuré par direction de ce que perçoit un poursuivant."""
+    """Résumé structuré par direction de ce que perçoit un poursuivant.
+    `prob` est la carte de probabilité posée sur l'ensemble candidat `belief`."""
     here = g.index[pos]
     exits = {}  # direction praticable -> case voisine
     for d in _DIRS:
@@ -80,6 +99,8 @@ def build_perception(pos: tuple[int, int], g: MazeGraph, belief: np.ndarray,
     dist = g.dist[here, cand]
     # une direction « mène au plus court » à une case si sa voisine en est plus proche d'un pas
     first = {d: g.dist[n, cand] == dist - 1 for d, n in exits.items()}
+    mass = prob[g.xy[cand, 0], g.xy[cand, 1]]
+    ties = np.maximum(sum(first.values(), np.zeros(len(cand))), 1)  # issues à égalité par case
 
     lines: list[str] = []
     if target_seen is not None:
@@ -96,7 +117,9 @@ def build_perception(pos: tuple[int, int], g: MazeGraph, belief: np.ndarray,
         elif first[d].any():
             n = int(first[d].sum())
             what = "1 case candidate" if n == 1 else f"{n} cases candidates"
-            lines.append(f"- {_LABELS[d]} : praticable ; {what} au plus court par là, "
+            share = float((mass / ties)[first[d]].sum())
+            lines.append(f"- {_LABELS[d]} : praticable ; {what} au plus court par là "
+                         f"({_pct(share)} de la probabilité), "
                          f"la plus proche à {int(dist[first[d]].min())} pas")
         else:
             lines.append(f"- {_LABELS[d]} : praticable ; aucune case candidate au plus court par là")
@@ -105,6 +128,7 @@ def build_perception(pos: tuple[int, int], g: MazeGraph, belief: np.ndarray,
     if len(cand) and len(cand) <= track_threshold:
         listed = " ; ".join(
             f"à {int(dist[k])} pas par {', '.join(_LABELS[d] for d in exits if first[d][k])}"
+            f" ({_pct(float(mass[k]))})"
             for k in np.argsort(dist, kind="stable"))
         lines.append(f"Cases candidates : {listed}.")
 

@@ -7,7 +7,7 @@ Par seed : immobilité, coups contre un mur, allers-retours, cases visitées.
 Cible visible : part des coups qui rapprochent de la cible en distance de chemin,
 et sens nord/sud quand la cible est dans l'axe. Cible cachée : part des coups
 vers une issue annoncée avec des cases candidates, vers la plus proche, vers
-la plus chargée. Les positions viennent de la trace (vraies positions), la
+la plus chargée, vers la plus probable. Les positions viennent de la trace (vraies positions), la
 carte est régénérée depuis la seed, comme dans les épisodes.
 """
 
@@ -26,13 +26,23 @@ from chase.graph import MazeGraph
 from chase.moves import MOVE_DELTAS, Move
 
 _EXIT = re.compile(r"- (NORD|SUD|EST|OUEST) : praticable ; (?:(\d+) cases? candidates? au plus "
-                   r"court par là, la plus proche à (\d+) pas|aucune case candidate)")
+                   r"court par là(?: \((moins de 1|\d+) % de la probabilité\))?, "
+                   r"la plus proche à (\d+) pas|aucune case candidate)")
 _MOVES = {"NORD": "NORTH", "SUD": "SOUTH", "EST": "EAST", "OUEST": "WEST"}
 
 
-def _exits(perception: str) -> dict[str, tuple[int, int | None]]:
-    """Issues praticables annoncées : direction -> (cases candidates, distance de la plus proche)."""
-    return {_MOVES[d]: (int(n), int(k)) if n else (0, None) for d, n, k in _EXIT.findall(perception)}
+def parse_exits(perception: str) -> dict[str, tuple[int, int | None, float | None]]:
+    """Issues praticables annoncées : direction -> (cases candidates, distance de la plus
+    proche, part de probabilité en %). « moins de 1 % » vaut 0,5 ; la probabilité est
+    absente (None) dans les traces de la campagne a1v2."""
+    out = {}
+    for d, n, p, k in _EXIT.findall(perception):
+        if not n:
+            out[_MOVES[d]] = (0, None, None)
+            continue
+        pct = None if not p else 0.5 if p == "moins de 1" else float(p)
+        out[_MOVES[d]] = (int(n), int(k), pct)
+    return out
 
 
 def summarize(records: list[dict], g: MazeGraph) -> Counter:
@@ -67,12 +77,15 @@ def summarize(records: list[dict], g: MazeGraph) -> Counter:
                 c["axe_ns_sens_inverse"] += move == ("SOUTH" if dy < 0 else "NORTH")
         else:
             c["cible_cachée"] += 1
-            exits = _exits(r["perception"])
+            exits = parse_exits(r["perception"])
             with_cand = {m: v for m, v in exits.items() if v[0] > 0}
             if move in with_cand:
                 c["cachée_vers_issue_avec_candidates"] += 1
                 c["cachée_vers_plus_proche"] += move == min(with_cand, key=lambda m: with_cand[m][1])
                 c["cachée_vers_plus_chargée"] += move == max(with_cand, key=lambda m: with_cand[m][0])
+                if with_cand[move][2] is not None:
+                    c["cachée_vers_plus_probable"] += move == max(with_cand,
+                                                                  key=lambda m: with_cand[m][2])
             elif move in exits:
                 c["cachée_vers_issue_sans_candidate"] += 1
 
@@ -97,6 +110,7 @@ def _row(seed, c: Counter) -> str:
             f"| {_pct(c['cachée_vers_issue_avec_candidates'], c['cible_cachée'])} "
             f"| {_pct(c['cachée_vers_issue_sans_candidate'], c['cible_cachée'])} "
             f"| {_pct(c['cachée_vers_plus_proche'], c['cible_cachée'])} "
+            f"| {_pct(c['cachée_vers_plus_probable'], c['cible_cachée'])} "
             f"| {c['replis']} | {c['tokens_complétion'] / n:.0f} |")
 
 
@@ -112,8 +126,8 @@ def main() -> None:
     print("| Seed | Décisions | Immobile | Contre un mur | Allers-retours | Cases visitées "
           "| Cible vue : rapproche / éloigne | Axe N/S : bon sens / inverse "
           "| Cachée : vers des candidates | Cachée : vers une issue vide | Cachée : vers la plus proche "
-          "| Replis | Tokens/décision |")
-    print("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+          "| Cachée : vers la plus probable | Replis | Tokens/décision |")
+    print("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     total = Counter()
     shown = []
     paths = glob.glob(os.path.join(args.trace_dir, "seed_*.jsonl"))

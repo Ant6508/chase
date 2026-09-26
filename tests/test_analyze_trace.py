@@ -11,7 +11,7 @@ from chase.env import ChaseEnv
 from chase.llm.client import LLMCallResult
 from chase.llm.config import LLMConfig
 from chase.moves import Move
-from scripts.analyze_trace import summarize
+from scripts.analyze_trace import parse_exits, summarize
 
 CFG = ChaseConfig(max_steps=6)
 
@@ -62,3 +62,30 @@ def test_hidden_target_decisions_are_scored_against_the_exits_announced_in_the_p
     # l'immobilité ne part vers aucune issue, qu'elle ait des candidates ou non
     assert c["cible_cachée"] > 0
     assert c["cachée_vers_issue_avec_candidates"] == 0
+
+
+def test_exits_are_parsed_with_and_without_probability():
+    with_prob = ("- NORD : mur\n"
+                 "- SUD : praticable ; 12 cases candidates au plus court par là "
+                 "(moins de 1 % de la probabilité), la plus proche à 1 pas\n"
+                 "- EST : praticable ; 1 case candidate au plus court par là "
+                 "(99 % de la probabilité), la plus proche à 4 pas\n"
+                 "- OUEST : praticable ; aucune case candidate au plus court par là")
+    assert parse_exits(with_prob) == {"SOUTH": (12, 1, 0.5), "EAST": (1, 4, 99.0),
+                                      "WEST": (0, None, None)}
+    # format de la campagne a1v2, sans probabilité
+    without = "- SUD : praticable ; 3 cases candidates au plus court par là, la plus proche à 2 pas"
+    assert parse_exits(without) == {"SOUTH": (3, 2, None)}
+
+
+def test_hidden_moves_toward_the_most_probable_exit_are_counted():
+    records = [{"seed": 3, "step": 0, "pursuer": 0, "pos": [1, 1], "target": [9, 9], "move": "EAST",
+                "fallback": False, "retries": 0, "completion_tokens": 1, "reasoning": "", "thinking": "",
+                "perception": "Cible non visible.\n"
+                              "- SUD : praticable ; 5 cases candidates au plus court par là "
+                              "(10 % de la probabilité), la plus proche à 1 pas\n"
+                              "- EST : praticable ; 5 cases candidates au plus court par là "
+                              "(90 % de la probabilité), la plus proche à 3 pas"}]
+    c = summarize(records, _graph())
+    assert c["cachée_vers_plus_probable"] == 1
+    assert c["cachée_vers_plus_proche"] == 0

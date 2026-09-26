@@ -148,3 +148,27 @@ def test_step_log_keeps_what_the_model_saw_and_thought_for_diagnosis():
         assert log.pos == percepts[i].pos
         assert log.perception == client.calls[i][1]
         assert log.thinking == thinking
+
+
+def test_probability_map_matches_r1_and_reaches_the_perception():
+    """Même carte de probabilité que GreedyPursuers(fused=False), qui s'en sert
+    pour ne pas revenir sur une case qu'il vient de vider ; le LLM la reçoit
+    résumée par issue."""
+    env = ChaseEnv(CFG)
+    env.reset(seed=2)
+    rng = np.random.default_rng(0)
+    r1 = GreedyPursuers(CFG, fused=False)
+    r1.reset(env.graph, rng)
+    client = FakeLLMClient([_ok(Move.STAY)] * (2 * CFG.n_pursuers))
+    llm = LLMPursuers(CFG, LLM_CFG, client=client)
+    llm.reset(env.graph, rng)
+
+    percepts = _percepts(env, env.visibility())
+    for _ in range(2):
+        r1.update(percepts)
+        llm.update(percepts)
+        for p1, p2 in zip(r1._probs, llm.probs()):
+            assert np.allclose(p1, p2)
+        llm.act(percepts)
+        percepts = _percepts(env, env.step_moves([Move.STAY] * (CFG.n_pursuers + 1)))
+    assert all("% de la probabilité" in user for _, user in client.calls)

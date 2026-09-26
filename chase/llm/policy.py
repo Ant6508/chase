@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..belief import observe, propagate
+from ..belief import diffuse, observe, observe_prob, propagate
 from ..config import ChaseConfig
 from ..graph import MazeGraph
 from ..moves import Move
@@ -33,23 +33,30 @@ class LLMPursuers(PursuerPolicy):
     def reset(self, graph: MazeGraph, rng: np.random.Generator):
         super().reset(graph, rng)
         self._beliefs: list[np.ndarray | None] = [None] * self.cfg.n_pursuers
+        self._probs: list[np.ndarray | None] = [None] * self.cfg.n_pursuers
         self.step_logs = []
 
     def update(self, percepts: list[Percept]):
         free = self.g.free
+        uniform = free / free.sum()
         for i, p in enumerate(percepts):
             first = self._beliefs[i] is None
             prior = free if first else propagate(self._beliefs[i], free)
+            prior_p = uniform if first else diffuse(self._probs[i], free)
             self._beliefs[i] = observe(prior, p.visible, p.target_seen)
+            self._probs[i] = observe_prob(prior_p, p.visible, p.target_seen)
 
     def beliefs(self) -> list[np.ndarray]:
         return list(self._beliefs)
 
+    def probs(self) -> list[np.ndarray]:
+        return list(self._probs)
+
     def act(self, percepts: list[Percept]) -> list[Move]:
         moves = []
         for i, p in enumerate(percepts):
-            perception = build_perception(
-                p.pos, self.g, self._beliefs[i], p.target_seen, self.cfg.track_threshold)
+            perception = build_perception(p.pos, self.g, self._beliefs[i], self._probs[i],
+                                          p.target_seen, self.cfg.track_threshold)
             result = self.client.decide(SYSTEM_PROMPT, perception)
             self.step_logs.append(StepLog(
                 pursuer=i,

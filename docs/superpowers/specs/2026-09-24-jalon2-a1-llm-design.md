@@ -143,14 +143,31 @@ prend déjà une `PursuerPolicy` en paramètre.
 - **Résumé de perception** (par pas, par poursuivant) — format « résumé
   structuré par direction » retenu pendant le brainstorming, pas de grille
   ASCII :
-  - pour chacune des 4 directions cardinales : praticable ou non (mur), et ce
-    qui y est visible (case libre, cible visible à telle distance, densité de
-    croyance — nombre de cases candidates visibles dans cette direction) ;
-  - si la cible est visible : sa position relative exacte ;
-  - taille de l'ensemble candidat courant, et sa localisation résumée
-    (liste explicite des cases si `len(cand) <= track_threshold`, sinon
-    décompte + direction dominante, en réutilisant les mêmes seuils que
-    `chase/policies.py` pour rester comparable).
+  - pour chacune des 4 directions cardinales : mur, ou praticable avec le
+    nombre de cases candidates qu'on atteint **au plus court** en partant par
+    là, et la distance **de chemin** de la plus proche (une case équidistante
+    par deux issues compte pour les deux) ;
+  - si la cible est visible : sa distance de chemin, et sa position relative
+    **en mots cardinaux** (« 1 case au nord et 2 cases à l'est »), jamais en
+    `(dx, dy)` ;
+  - taille de l'ensemble candidat courant ; si `len(cand) <= track_threshold`
+    (même seuil que `chase/policies.py`), la liste des cases, chacune avec sa
+    distance de chemin et les issues qui y mènent au plus court.
+  - **Révision du 2026-09-26**, après la campagne A1 restée au niveau du
+    hasard (`results/jalon2_a1.md`). Le premier format comptait les cases
+    candidates par direction **à vol d'oiseau** et donnait la cible en
+    `(dx, dy)`. Deux défauts mesurés : (1) le modèle lisait `dy < 0` comme
+    « au sud » (convention mathématique) alors que `NORTH` vaut `dy = -1`
+    dans le code — cible 3 cases au nord, il jouait `SOUTH`, et inversement ;
+    (2) sur les trajectoires de R1, la direction la plus chargée à vol
+    d'oiseau était un mur une fois sur deux, et R1 ne suivait la direction
+    praticable la plus chargée qu'une fois sur deux : ce résumé ne portait
+    pas l'information de chemin dont une bonne politique se sert. Avec le
+    format actuel, R1 part vers une issue annoncée avec des candidates dans
+    99 % des cas (cible cachée) et vers l'issue annoncée dans 100 % des cas
+    (cible visible). Le changement ne touche que le harnais LLM : ni les
+    règles, ni la croyance, ni l'information disponible (le poursuivant
+    connaît déjà la carte) ne changent.
   - La croyance utilisée est la **croyance individuelle** du poursuivant
     (mêmes fonctions `chase/belief.py::propagate`/`observe` que R1, appliquées
     indépendamment par poursuivant — aucune fusion, aucune position de

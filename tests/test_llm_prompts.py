@@ -15,11 +15,38 @@ def _open_room() -> MazeGraph:
     return MazeGraph(free)
 
 
-def test_target_visible_reports_relative_offset():
-    g = _open_room()
+def _u_corridor() -> MazeGraph:
+    """Couloir en U sur une grille 7x7 : de (1,1) au sud jusqu'à (1,5), à l'est
+    jusqu'à (5,5), puis au nord jusqu'à (5,1). (1,1) et (5,1) sont à 4 cases
+    à vol d'oiseau, mais à 12 pas par le couloir."""
+    free = np.zeros((7, 7), dtype=bool)
+    free[1, 1:6] = True
+    free[1:6, 5] = True
+    free[5, 1:6] = True
+    return MazeGraph(free)
+
+
+def _belief(g: MazeGraph, *cells) -> np.ndarray:
     belief = np.zeros(g.free.shape, dtype=bool)
-    text = build_perception((3, 3), g, belief, target_seen=(5, 2), track_threshold=8)
-    assert "Cible visible, position relative (dx=2, dy=-1)." in text
+    for c in cells:
+        belief[c] = True
+    return belief
+
+
+def test_visible_target_is_located_in_cardinal_words_never_in_dx_dy():
+    g = _open_room()
+    text = build_perception((3, 3), g, _belief(g, (5, 2)), target_seen=(5, 2), track_threshold=8)
+    assert "Cible visible, à 3 pas par les couloirs" in text
+    assert "à vol d'oiseau : 1 case au nord et 2 cases à l'est" in text
+    assert "dx" not in text and "dy" not in text
+
+
+def test_target_north_is_called_north():
+    """Régression : avec (dx=0, dy=-2), le modèle lisait « au sud » (convention
+    mathématique) alors que NORTH vaut dy=-1 dans le code."""
+    g = _open_room()
+    text = build_perception((3, 3), g, _belief(g, (3, 1)), target_seen=(3, 1), track_threshold=8)
+    assert "à vol d'oiseau : 2 cases au nord)" in text
 
 
 def test_target_not_visible_reports_so():
@@ -41,30 +68,38 @@ def test_directions_report_passable_and_walls():
     assert "SUD : praticable" in text
 
 
-def test_candidate_cells_bucketed_by_dominant_direction():
-    g = _open_room()
-    belief = np.zeros(g.free.shape, dtype=bool)
-    belief[3, 1] = True   # au nord de (3,3) : dx=0, dy=-2
-    belief[3, 5] = True   # au sud : dx=0, dy=2
-    belief[5, 3] = True   # à l'est : dx=2, dy=0
-    belief[1, 3] = True   # à l'ouest : dx=-2, dy=0
-    text = build_perception((3, 3), g, belief, target_seen=None, track_threshold=8)
-    assert "NORD : praticable ; cases candidates de ce côté : 1" in text
-    assert "SUD : praticable ; cases candidates de ce côté : 1" in text
-    assert "EST : praticable ; cases candidates de ce côté : 1" in text
-    assert "OUEST : praticable ; cases candidates de ce côté : 1" in text
-    assert "Ensemble candidat total : 4 case(s)." in text
+def test_candidates_are_counted_by_the_exit_that_starts_the_shortest_path():
+    g = _u_corridor()
+    # (1,1) au nord à 2 pas ; (5,1) « à l'est » à vol d'oiseau, mais à 10 pas en partant au sud
+    text = build_perception((1, 3), g, _belief(g, (1, 1), (5, 1)), target_seen=None,
+                            track_threshold=8)
+    assert "- NORD : praticable ; 1 case candidate au plus court par là, la plus proche à 2 pas" in text
+    assert "- SUD : praticable ; 1 case candidate au plus court par là, la plus proche à 10 pas" in text
+    assert "- EST : mur" in text
+    assert "- OUEST : mur" in text
+    assert "Ensemble candidat total : 2 case(s)." in text
 
 
-def test_diagonal_offset_tie_break_goes_to_north_south():
+def test_exit_without_candidates_says_so():
+    g = _u_corridor()
+    text = build_perception((1, 3), g, _belief(g, (1, 1)), target_seen=None, track_threshold=8)
+    assert "- SUD : praticable ; aucune case candidate au plus court par là" in text
+
+
+def test_candidate_equidistant_by_two_exits_counts_for_both():
     g = _open_room()
-    belief = np.zeros(g.free.shape, dtype=bool)
-    belief[5, 5] = True  # décalage diagonal exact par rapport à (3,3) : dx=2, dy=2
-    text = build_perception((3, 3), g, belief, target_seen=None, track_threshold=8)
-    # À égalité stricte (abs(dy) == abs(dx)), le bucketing compte la case
-    # sous SUD (dy>0), jamais sous EST, par convention.
-    assert "SUD : praticable ; cases candidates de ce côté : 1" in text
-    assert "EST : praticable ; cases candidates de ce côté : 0" in text
+    # (5,5) est à 4 pas de (3,3), aussi bien en partant au sud qu'à l'est
+    text = build_perception((3, 3), g, _belief(g, (5, 5)), target_seen=None, track_threshold=8)
+    assert "- SUD : praticable ; 1 case candidate au plus court par là, la plus proche à 4 pas" in text
+    assert "- EST : praticable ; 1 case candidate au plus court par là, la plus proche à 4 pas" in text
+    assert "- NORD : praticable ; aucune case candidate au plus court par là" in text
+
+
+def test_candidate_list_gives_path_distance_and_first_exits_nearest_first():
+    g = _u_corridor()
+    text = build_perception((1, 3), g, _belief(g, (5, 1), (1, 1)), target_seen=None,
+                            track_threshold=8)
+    assert "Cases candidates : à 2 pas par NORD ; à 10 pas par SUD." in text
 
 
 def test_candidate_list_shown_only_under_threshold():

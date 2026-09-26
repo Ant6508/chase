@@ -14,10 +14,10 @@ CFG = LLMConfig(max_retries=2)
 
 
 def _tool_call_response(direction: str, reasoning: str = "parce que",
-                        prompt_tokens: int = 10, completion_tokens: int = 5):
+                        prompt_tokens: int = 10, completion_tokens: int = 5, **message_fields):
     call = SimpleNamespace(function=SimpleNamespace(
         arguments=json.dumps({"direction": direction, "reasoning": reasoning})))
-    message = SimpleNamespace(tool_calls=[call])
+    message = SimpleNamespace(tool_calls=[call], **message_fields)
     return SimpleNamespace(choices=[SimpleNamespace(message=message)],
                            usage=SimpleNamespace(prompt_tokens=prompt_tokens,
                                                   completion_tokens=completion_tokens))
@@ -106,3 +106,18 @@ def test_decide_falls_back_after_exhausting_retries():
     assert result.move == Move.STAY
     assert result.fallback is True
     assert result.retries == CFG.max_retries
+
+
+def test_decide_keeps_the_chain_of_thought_emitted_before_the_tool_call():
+    thinking = "La cible est à l'ouest, le couloir ouest est praticable."
+    fake = _FakeOpenAI([_tool_call_response("WEST", reasoning_content=thinking)])
+    client = LMStudioClient(CFG, client=fake)
+    result = client.decide("système", "perception")
+    assert result.thinking == thinking
+
+
+def test_decide_without_chain_of_thought_leaves_thinking_empty():
+    fake = _FakeOpenAI([_tool_call_response("WEST")])
+    client = LMStudioClient(CFG, client=fake)
+    result = client.decide("système", "perception")
+    assert result.thinking == ""

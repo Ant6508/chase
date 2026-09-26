@@ -61,6 +61,9 @@ class LLMPursuers(PursuerPolicy):
                 retries=result.retries,
                 fallback=result.fallback,
                 message_tokens=0,
+                pos=p.pos,
+                perception=perception,
+                thinking=result.thinking,
             ))
             moves.append(result.move)
         return moves

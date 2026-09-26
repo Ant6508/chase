@@ -17,22 +17,29 @@ relancer la même commande avec le même journal ne rejoue que les seeds
 manquantes (un run tué ne perd que ses épisodes en cours). --base-url vise un
 autre serveur que celui de LLMConfig, par ex. http://127.0.0.1:1234/v1 quand
 le script tourne sur le pod lui-même (voir scripts/pod/).
+
+--trace DIR écrit, pour le diagnostic, un fichier DIR/seed_<n>.jsonl par
+épisode : une ligne par décision (perception envoyée, pensée du modèle, coup,
+positions vraies du poursuivant et de la cible), au fil de l'eau.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import nullcontext
 from dataclasses import asdict, replace
 from typing import Callable
 
 from chase.config import ChaseConfig
 from chase.env import ChaseEnv, episode_rngs
+from chase.llm.client import LLMClient
 from chase.llm.config import LLMConfig
 from chase.llm.journal import EpisodeJournal
-from chase.llm.logging import EpisodeLLMStats
+from chase.llm.logging import EpisodeLLMStats, StepLog
 from chase.llm.policy import LLMPursuers
 from chase.policies import Percept
 from chase.target import ScriptedTarget
@@ -43,12 +50,21 @@ def _percepts(env: ChaseEnv, vis) -> list[Percept]:
             for p in range(env.cfg.n_pursuers)]
 
 
+def _trace_record(seed: int, step: int, target: tuple[int, int], log: StepLog) -> dict:
+    return {"seed": seed, "step": step, "pursuer": log.pursuer,
+            "pos": [int(v) for v in log.pos], "target": [int(v) for v in target],
+            "move": log.move.name, "fallback": log.fallback, "retries": log.retries,
+            "completion_tokens": log.completion_tokens, "perception": log.perception,
+            "reasoning": log.reasoning, "thinking": log.thinking}
+
+
 def run_llm_episode(cfg: ChaseConfig, llm_cfg: LLMConfig, seed: int,
-                     on_step: Callable[[ChaseEnv, LLMPursuers], None] | None = None):
+                     on_step: Callable[[ChaseEnv, LLMPursuers], None] | None = None,
+                     trace_path: str | None = None, client: LLMClient | None = None):
     env = ChaseEnv(cfg)
     env.reset(seed=seed)
     rngs = episode_rngs(seed)
-    policy = LLMPursuers(cfg, llm_cfg)
+    policy = LLMPursuers(cfg, llm_cfg, client=client)
     policy.reset(env.graph, rngs["pursuers"])
     target = ScriptedTarget(env.graph, rngs["target"], cfg.target_memory, cfg.target_cycle_bias)
 
@@ -57,14 +73,21 @@ def run_llm_episode(cfg: ChaseConfig, llm_cfg: LLMConfig, seed: int,
     policy.update(_percepts(env, vis))
     if on_step:
         on_step(env, policy)
-    while not env.done:
-        moves = policy.act(_percepts(env, vis))
-        pursuers = [env.pursuer_pos(p) for p in range(cfg.n_pursuers)]
-        moves.append(target.act(env.target_pos, vis[env.target_id], pursuers))
-        vis = env.step_moves(moves)
-        policy.update(_percepts(env, vis))
-        if on_step:
-            on_step(env, policy)
+    with open(trace_path, "w", encoding="utf-8") if trace_path else nullcontext() as trace:
+        while not env.done:
+            step, target_pos = env.step_count, env.target_pos
+            moves = policy.act(_percepts(env, vis))
+            if trace:
+                for log in policy.step_logs[-cfg.n_pursuers:]:
+                    trace.write(json.dumps(_trace_record(seed, step, target_pos, log),
+                                           ensure_ascii=False) + "\n")
+                trace.flush()
+            pursuers = [env.pursuer_pos(p) for p in range(cfg.n_pursuers)]
+            moves.append(target.act(env.target_pos, vis[env.target_id], pursuers))
+            vis = env.step_moves(moves)
+            policy.update(_percepts(env, vis))
+            if on_step:
+                on_step(env, policy)
     wall_time_s = time.monotonic() - t0
 
     stats = EpisodeLLMStats.from_steps(policy.step_logs, wall_time_s)
@@ -92,6 +115,8 @@ def main() -> None:
     parser.add_argument("--journal",
                         help="JSONL : un épisode par ligne dès qu'il se termine ; reprise si existant")
     parser.add_argument("--base-url", help="serveur LM Studio (défaut : LLMConfig.base_url)")
+    parser.add_argument("--trace",
+                        help="dossier : une trace JSONL pas à pas par seed, pour le diagnostic")
     args = parser.parse_args()
 
     cfg = ChaseConfig().replace(**_parse_overrides(args.set))
@@ -99,6 +124,8 @@ def main() -> None:
     if args.base_url:
         llm_cfg = replace(llm_cfg, base_url=args.base_url)
     seeds = list(range(args.first_seed, args.first_seed + args.episodes))
+    if args.trace:
+        os.makedirs(args.trace, exist_ok=True)
 
     journal = None
     done: dict[int, dict] = {}
@@ -122,7 +149,9 @@ def main() -> None:
                 print(f"  pas {env.step_count}/{cfg.max_steps} temps_écoulé={elapsed:.1f}s",
                       flush=True)
 
-        captured, steps, confinement, stats = run_llm_episode(cfg, llm_cfg, seed, on_step=on_step)
+        trace_path = os.path.join(args.trace, f"seed_{seed}.jsonl") if args.trace else None
+        captured, steps, confinement, stats = run_llm_episode(
+            cfg, llm_cfg, seed, on_step=on_step, trace_path=trace_path)
         episode_wall_s = time.monotonic() - t0
         if journal:
             journal.append({"seed": seed, "captured": captured, "steps": steps,

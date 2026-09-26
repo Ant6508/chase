@@ -129,3 +129,22 @@ def test_step_log_fields_present_and_reasoning_truncated():
     assert log.retries == 1
     assert log.fallback is False
     assert log.message_tokens == 0
+
+
+def test_step_log_keeps_what_the_model_saw_and_thought_for_diagnosis():
+    env = ChaseEnv(CFG)
+    env.reset(seed=3)
+    thinking = "y" * 3000  # pensée longue : jamais tronquée, c'est l'objet du diagnostic
+    result = LLMCallResult(move=Move.EAST, reasoning="r", prompt_tokens=1, completion_tokens=1,
+                           latency_ms=1.0, retries=0, fallback=False, thinking=thinking)
+    client = FakeLLMClient([result, result])
+    policy = LLMPursuers(CFG, LLM_CFG, client=client)
+    policy.reset(env.graph, np.random.default_rng(0))
+    percepts = _percepts(env, env.visibility())
+    policy.update(percepts)
+    policy.act(percepts)
+
+    for i, log in enumerate(policy.step_logs):
+        assert log.pos == percepts[i].pos
+        assert log.perception == client.calls[i][1]
+        assert log.thinking == thinking

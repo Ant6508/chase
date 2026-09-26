@@ -49,6 +49,7 @@ class LLMCallResult:
     latency_ms: float
     retries: int
     fallback: bool
+    thinking: str = ""  # chaîne de pensée émise avant l'appel d'outil (`reasoning_content`)
 
 
 class LLMClient(Protocol):
@@ -101,6 +102,7 @@ class LMStudioClient:
                 continue
             direction, reasoning = parsed
             usage = response.usage
+            thinking = getattr(response.choices[0].message, "reasoning_content", None) or ""
             return LLMCallResult(
                 move=Move[direction],
                 reasoning=reasoning,
@@ -109,6 +111,7 @@ class LMStudioClient:
                 latency_ms=latency_ms,
                 retries=attempt,
                 fallback=False,
+                thinking=thinking,
             )
         return LLMCallResult(
             move=Move.STAY,

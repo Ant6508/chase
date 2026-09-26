@@ -24,6 +24,11 @@ class StepLog:
     retries: int
     fallback: bool
     message_tokens: int
+    # Diagnostic (traces pas à pas de run_llm.py --trace) : ce que le modèle a vu
+    # et pensé. La pensée n'est pas tronquée : c'est elle qu'on vient lire.
+    pos: tuple[int, int] | None = None
+    perception: str = ""
+    thinking: str = ""
 
 
 @dataclass

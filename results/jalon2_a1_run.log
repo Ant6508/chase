@@ -1,0 +1,82 @@
+seed 3: capturé=False pas=60 temps=4045.1s latence_moy=33706ms replis=0
+seed 0: capturé=False pas=60 temps=4312.0s latence_moy=35929ms replis=0
+seed 5: capturé=False pas=60 temps=4328.0s latence_moy=36064ms replis=0
+seed 7: capturé=False pas=60 temps=4895.9s latence_moy=37960ms replis=1
+seed 1: capturé=False pas=60 temps=4990.8s latence_moy=41586ms replis=0
+seed 6: capturé=False pas=60 temps=6479.0s latence_moy=40056ms replis=3
+seed 2: capturé=False pas=60 temps=8892.9s latence_moy=51873ms replis=3
+seed 12: capturé=False pas=60 temps=3942.5s latence_moy=32853ms replis=0
+seed 4: capturé=False pas=60 temps=9064.9s latence_moy=45997ms replis=4
+seed 9: capturé=False pas=60 temps=5013.0s latence_moy=41774ms replis=0
+seed 8: capturé=False pas=60 temps=5463.3s latence_moy=40772ms replis=0
+seed 13: capturé=False pas=60 temps=4474.0s latence_moy=36320ms replis=0
+seed 10: capturé=False pas=60 temps=7140.7s latence_moy=50143ms replis=1
+seed 14: capturé=False pas=60 temps=4114.0s latence_moy=34282ms replis=0
+seed 18: capturé=False pas=60 temps=4243.2s latence_moy=35360ms replis=0
+seed 11: capturé=False pas=60 temps=9105.0s latence_moy=55626ms replis=2
+seed 17: capturé=False pas=60 temps=4855.2s latence_moy=40460ms replis=0
+seed 16: capturé=False pas=60 temps=5249.4s latence_moy=42733ms replis=0
+seed 15: capturé=False pas=60 temps=7139.1s latence_moy=47494ms replis=2
+seed 19: capturé=False pas=60 temps=5919.3s latence_moy=41420ms replis=2
+seed 20: capturé=False pas=60 temps=6311.7s latence_moy=42799ms replis=2
+seed 21: capturé=False pas=60 temps=4855.0s latence_moy=40458ms replis=0
+seed 22: capturé=False pas=60 temps=4775.5s latence_moy=39795ms replis=0
+seed 25: capturé=False pas=60 temps=5021.8s latence_moy=39009ms replis=1
+seed 24: capturé=False pas=60 temps=5641.8s latence_moy=41195ms replis=1
+seed 27: capturé=False pas=60 temps=3643.7s latence_moy=30363ms replis=0
+seed 23: capturé=False pas=60 temps=6725.7s latence_moy=41841ms replis=2
+seed 28: capturé=False pas=60 temps=2975.8s latence_moy=24797ms replis=0
+seed 29: capturé=False pas=60 temps=3032.4s latence_moy=24381ms replis=0
+seed 26: capturé=False pas=60 temps=5545.0s latence_moy=28036ms replis=4
+Seeds 0..29 (30 épisodes), T = 60.
+
+| Seed | Capture | Pas | Confinement à T | Temps mural (s) | Latence moy. (ms) | Replis |
+|---|---|---|---|---|---|---|
+| 0 | non | 60 | 0.827 | 4312.0 | 35929 | 0 |
+| 1 | non | 60 | 0.776 | 4990.8 | 41586 | 0 |
+| 2 | non | 60 | 0.469 | 8892.9 | 51873 | 3 |
+| 3 | non | 60 | 0.816 | 4045.1 | 33706 | 0 |
+| 4 | non | 60 | 0.490 | 9064.9 | 45997 | 4 |
+| 5 | non | 60 | 0.898 | 4328.0 | 36064 | 0 |
+| 6 | non | 60 | 0.204 | 6479.0 | 40056 | 3 |
+| 7 | non | 60 | 0.827 | 4895.9 | 37960 | 1 |
+| 8 | non | 60 | 0.010 | 5463.3 | 40772 | 0 |
+| 9 | non | 60 | 0.224 | 5013.0 | 41774 | 0 |
+| 10 | non | 60 | 0.765 | 7140.7 | 50143 | 1 |
+| 11 | non | 60 | 0.031 | 9105.0 | 55626 | 2 |
+| 12 | non | 60 | 0.908 | 3942.5 | 32853 | 0 |
+| 13 | non | 60 | 0.796 | 4474.0 | 36320 | 0 |
+| 14 | non | 60 | 0.714 | 4114.0 | 34282 | 0 |
+| 15 | non | 60 | 0.010 | 7139.1 | 47494 | 2 |
+| 16 | non | 60 | 0.888 | 5249.4 | 42733 | 0 |
+| 17 | non | 60 | 0.786 | 4855.2 | 40460 | 0 |
+| 18 | non | 60 | 0.837 | 4243.2 | 35360 | 0 |
+| 19 | non | 60 | 0.082 | 5919.3 | 41420 | 2 |
+| 20 | non | 60 | 0.061 | 6311.7 | 42799 | 2 |
+| 21 | non | 60 | 0.796 | 4855.0 | 40458 | 0 |
+| 22 | non | 60 | 0.847 | 4775.5 | 39795 | 0 |
+| 23 | non | 60 | 0.194 | 6725.7 | 41841 | 2 |
+| 24 | non | 60 | 0.082 | 5641.8 | 41195 | 1 |
+| 25 | non | 60 | 0.031 | 5021.8 | 39009 | 1 |
+| 26 | non | 60 | 0.235 | 5545.0 | 28036 | 4 |
+| 27 | non | 60 | 0.867 | 3643.7 | 30363 | 0 |
+| 28 | non | 60 | 0.776 | 2975.8 | 24797 | 0 |
+| 29 | non | 60 | 0.867 | 3032.4 | 24381 | 0 |
+
+Paramètres du jeu :
+
+```json
+{
+  "size": 15,
+  "n_loops": 1,
+  "min_loop_len": 6,
+  "n_pursuers": 2,
+  "view_size": 5,
+  "min_spawn_dist": 6,
+  "max_steps": 60,
+  "target_memory": 6,
+  "target_cycle_bias": 0.5,
+  "comm_delay": 1,
+  "track_threshold": 8
+}
+```

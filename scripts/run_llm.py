@@ -18,12 +18,6 @@ manquantes (un run tué ne perd que ses épisodes en cours). --base-url vise un
 autre serveur que celui de LLMConfig, par ex. http://127.0.0.1:1234/v1 quand
 le script tourne sur le pod lui-même (voir scripts/pod/).
 
---models a,b,... répartit les épisodes (seed modulo) entre plusieurs copies du
-même modèle chargées sur le serveur. Chaque copie tourne dans son propre
-processus llama-server, dont un seul cœur fait l'échantillonnage de tous ses
-créneaux : c'est ce cœur, pas le GPU, qui borne le débit (mesuré sur un A100 :
-~105 tokens/s par copie, quel que soit le nombre de créneaux).
-
 --trace DIR écrit, pour le diagnostic, un fichier DIR/seed_<n>.jsonl par
 épisode : une ligne par décision (perception envoyée, pensée du modèle, coup,
 positions vraies du poursuivant et de la cible), au fil de l'eau.
@@ -123,15 +117,12 @@ def main() -> None:
     parser.add_argument("--base-url", help="serveur LM Studio (défaut : LLMConfig.base_url)")
     parser.add_argument("--trace",
                         help="dossier : une trace JSONL pas à pas par seed, pour le diagnostic")
-    parser.add_argument("--models",
-                        help="identifiants séparés par des virgules : épisodes répartis entre ces copies")
     args = parser.parse_args()
 
     cfg = ChaseConfig().replace(**_parse_overrides(args.set))
     llm_cfg = LLMConfig()
     if args.base_url:
         llm_cfg = replace(llm_cfg, base_url=args.base_url)
-    models = args.models.split(",") if args.models else [llm_cfg.model]
     seeds = list(range(args.first_seed, args.first_seed + args.episodes))
     if args.trace:
         os.makedirs(args.trace, exist_ok=True)
@@ -142,8 +133,6 @@ def main() -> None:
         # l'adresse du serveur n'entre pas dans les paramètres : même modèle en local
         # ou sur le pod, un run peut reprendre de l'un à l'autre
         llm_params = {k: v for k, v in asdict(llm_cfg).items() if k != "base_url"}
-        if args.models:
-            llm_params["model"] = models
         journal = EpisodeJournal(args.journal, {"game": cfg.as_dict(), "llm": llm_params})
         done = {s: r for s, r in journal.completed().items() if s in seeds}
         if done:
@@ -162,8 +151,7 @@ def main() -> None:
 
         trace_path = os.path.join(args.trace, f"seed_{seed}.jsonl") if args.trace else None
         captured, steps, confinement, stats = run_llm_episode(
-            cfg, replace(llm_cfg, model=models[seed % len(models)]), seed,
-            on_step=on_step, trace_path=trace_path)
+            cfg, llm_cfg, seed, on_step=on_step, trace_path=trace_path)
         episode_wall_s = time.monotonic() - t0
         if journal:
             journal.append({"seed": seed, "captured": captured, "steps": steps,

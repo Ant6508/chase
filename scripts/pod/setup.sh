@@ -47,15 +47,6 @@ if ! lms ps 2>/dev/null | grep -q "$IDENTIFIER"; then
     lms load "$MODEL" --gpu max --context-length "$CONTEXT" --parallel "$PARALLEL" \
         --identifier "$IDENTIFIER" -y
 fi
-# COPIES=N charge N-1 copies de plus ($IDENTIFIER-2 ... -N), chacune dans son propre
-# llama-server : un seul cœur y échantillonne tous les créneaux et borne le débit
-# (~105 tokens/s par copie sur un A100). À combiner avec run_llm.py --models.
-for k in $(seq 2 "${COPIES:-1}"); do
-    if ! lms ps 2>/dev/null | grep -q "$IDENTIFIER-$k "; then
-        lms load "$MODEL" --gpu max --context-length 20480 --parallel 8 \
-            --identifier "$IDENTIFIER-$k" -y
-    fi
-done
 if ! curl -sf http://127.0.0.1:1234/v1/models >/dev/null; then
     setsid nohup lms server start --port 1234 --bind 0.0.0.0 --cors \
         > /workspace/server.log 2>&1 < /dev/null &

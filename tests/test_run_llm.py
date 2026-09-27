@@ -104,21 +104,3 @@ def test_trace_option_writes_one_file_per_seed(tmp_path, monkeypatch):
     assert traces == [str(tmp_path / "trace" / "seed_8.jsonl"),
                       str(tmp_path / "trace" / "seed_9.jsonl")]
     assert (tmp_path / "trace").is_dir()
-
-
-def test_models_option_spreads_episodes_over_several_copies_of_the_model(tmp_path, monkeypatch):
-    """Plusieurs copies du même modèle chargées sur le serveur : chacune a son
-    propre processus, donc son propre cœur pour l'échantillonnage, qui borne le
-    débit. Les épisodes sont répartis par seed modulo le nombre de copies."""
-    models = []
-
-    def fake(cfg, llm_cfg, seed, on_step=None, trace_path=None):
-        models.append((seed, llm_cfg.model))
-        return False, 7, 0.5, EpisodeLLMStats(10, 5, 0, 100.0, 1, 1.0)
-
-    monkeypatch.setattr(run_llm, "run_llm_episode", fake)
-    _run(monkeypatch, "--episodes", "4", "--models", "m-a,m-b", "--journal", str(tmp_path / "j.jsonl"))
-
-    assert sorted(models) == [(0, "m-a"), (1, "m-b"), (2, "m-a"), (3, "m-b")]
-    first = json.loads((tmp_path / "j.jsonl").read_text(encoding="utf-8").splitlines()[0])
-    assert first["params"]["llm"]["model"] == ["m-a", "m-b"]

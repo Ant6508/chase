@@ -104,3 +104,20 @@ def test_trace_option_writes_one_file_per_seed(tmp_path, monkeypatch):
     assert traces == [str(tmp_path / "trace" / "seed_8.jsonl"),
                       str(tmp_path / "trace" / "seed_9.jsonl")]
     assert (tmp_path / "trace").is_dir()
+
+
+def test_timeout_option_overrides_the_client_timeout(tmp_path, monkeypatch):
+    """En local, un GPU lent génère ~7 tokens/s par partie à 4 en parallèle :
+    une réponse de 1 600 tokens dépasse les 180 s par défaut."""
+    timeouts = []
+
+    def fake(cfg, llm_cfg, seed, on_step=None, trace_path=None):
+        timeouts.append(llm_cfg.timeout_s)
+        return False, 7, 0.5, EpisodeLLMStats(10, 5, 0, 100.0, 1, 1.0)
+
+    monkeypatch.setattr(run_llm, "run_llm_episode", fake)
+    _run(monkeypatch, "--episodes", "1", "--timeout", "400", "--journal", str(tmp_path / "j.jsonl"))
+
+    assert timeouts == [400.0]
+    first = json.loads((tmp_path / "j.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert first["params"]["llm"]["timeout_s"] == 400.0

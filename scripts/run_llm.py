@@ -117,12 +117,17 @@ def main() -> None:
     parser.add_argument("--base-url", help="serveur LM Studio (défaut : LLMConfig.base_url)")
     parser.add_argument("--trace",
                         help="dossier : une trace JSONL pas à pas par seed, pour le diagnostic")
+    parser.add_argument("--timeout", type=float,
+                        help="délai par appel en secondes (défaut : LLMConfig.timeout_s) ; "
+                             "à allonger sur un GPU lent")
     args = parser.parse_args()
 
     cfg = ChaseConfig().replace(**_parse_overrides(args.set))
     llm_cfg = LLMConfig()
     if args.base_url:
         llm_cfg = replace(llm_cfg, base_url=args.base_url)
+    if args.timeout:
+        llm_cfg = replace(llm_cfg, timeout_s=args.timeout)
     seeds = list(range(args.first_seed, args.first_seed + args.episodes))
     if args.trace:
         os.makedirs(args.trace, exist_ok=True)

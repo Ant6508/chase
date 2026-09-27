@@ -178,6 +178,23 @@ prend déjà une `PursuerPolicy` en paramètre.
     stratégie de recherche sur un épisode. Le changement ne touche que le harnais LLM : ni les
     règles, ni la croyance, ni l'information disponible (le poursuivant
     connaît déjà la carte) ne changent.
+  - **Révision du 2026-09-27**, après la deuxième campagne
+    (`results/jalon2_a1v2.md`, 30 % de captures, 50 % d'allers-retours) :
+    chaque issue annonce aussi sa **part de probabilité**, calculée sur la
+    même carte que R1 (`belief.diffuse`/`observe_prob`) ; une case aussi
+    proche par deux issues partage la sienne. Sans elle, la case qu'on vient
+    de quitter, sortie du champ orienté, redevenait « la candidate la plus
+    proche, à 1 pas ». Deux vérifications avant campagne : (1) sur 10
+    situations de retour en arrière de a1v2, présentées au modèle local avec
+    la nouvelle perception, il part vers l'issue la plus probable 9 fois sur
+    10 (5 sur 6 quand elle est ailleurs que l'issue arrière ; 4 sur 4 quand
+    c'est l'issue arrière, alors à 70–99 % : un vrai demi-tour) ; (2) sur les
+    30 seeds, un poursuivant mécanique qui suit l'issue la plus probable
+    capture 60 % (22 % d'allers-retours), contre 37 % (47 %) pour celui qui
+    suit la case la plus proche, lequel reproduit a1v2. Conséquence à
+    assumer dans le rapport : la perception porte désormais l'essentiel de
+    l'information de décision de R1 ; le bras A1 mesure si le LLM l'exploite,
+    et les bras suivants ce que la communication y ajoute.
   - La croyance utilisée est la **croyance individuelle** du poursuivant
     (mêmes fonctions `chase/belief.py::propagate`/`observe` que R1, appliquées
     indépendamment par poursuivant — aucune fusion, aucune position de

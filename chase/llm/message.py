@@ -9,6 +9,7 @@ Voir docs/superpowers/specs/2026-09-29-jalon2-a2-design.md, § Le message.
 from __future__ import annotations
 
 import json
+import math
 import threading
 
 TOKENIZER_REPO = "google/gemma-4-12B-it"  # tokenizer.json seul, sans les poids
@@ -52,7 +53,8 @@ def validate(obj) -> str | None:
             return f"{f} n'est ni une chaîne ni null"
     cand = obj["candidates"]
     if not isinstance(cand, dict) or not all(
-            isinstance(v, (int, float)) and not isinstance(v, bool) for v in cand.values()):
+            isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+            for v in cand.values()):
         return "candidates n'est pas un objet lieu -> nombre"
     if not isinstance(obj["intention"], list) or not all(isinstance(s, str) for s in obj["intention"]):
         return "intention n'est pas une liste de chaînes"

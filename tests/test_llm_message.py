@@ -37,6 +37,8 @@ def test_valid_messages_pass():
     (_msg(candidates=["C1"]), "candidates"),
     (_msg(candidates={"C1": "7"}), "candidates"),
     (_msg(candidates={"C1": True}), "candidates"),
+    (_msg(candidates={"C1": float("nan")}), "candidates"),
+    (_msg(candidates={"C1": float("inf")}), "candidates"),
     (_msg(intention="K1"), "intention"),
     (_msg(intention=[1]), "intention"),
 ])

@@ -8,8 +8,9 @@ décision (act) change : elle vient d'un appel LLM au lieu de l'heuristique.
 - A1bis : même perception, plus les lieux nommés (chase/llm/places.py).
 - A2 : perception d'A1bis, plus le message écrit par le coéquipier au pas
   précédent, en fin de prompt. Chacun écrit le sien dans le même appel. Le
-  harnais ne lit jamais le contenu d'un message : il le valide, le réécrit, le
-  compte et le transmet (docs/superpowers/specs/2026-09-29-jalon2-a2-design.md).
+  harnais ne lit jamais le contenu d'un message pour décider ou calculer quoi
+  que ce soit : il le valide, le réécrit, le compte, relève les noms inconnus
+  et le transmet (docs/superpowers/specs/2026-09-29-jalon2-a2-design.md).
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ from .prompts import ARMS, build_perception, message_block, system_prompt
 
 
 class LLMPursuers(PursuerPolicy):
+    """Politique gloutonne (croyance de R1), décidée à chaque pas par un appel LLM."""
 
     def __init__(self, cfg: ChaseConfig, llm_cfg: LLMConfig, client: LLMClient | None = None,
                  arm: str = "A1"):
@@ -77,14 +79,17 @@ class LLMPursuers(PursuerPolicy):
         for i, p in enumerate(percepts):
             perception = build_perception(p.pos, self.g, self._beliefs[i], self._probs[i],
                                           p.target_seen, self.cfg.track_threshold, self.places)
+            received = self._inbox[i] if channel else None
             if channel:
-                user = f"{perception}\n\n{message_block(self._inbox[i])}"
+                user = f"{perception}\n\n{message_block(received)}"
                 result = self.client.decide(self.system_prompt, user, with_message=True)
             else:
                 # A1 et A1bis appellent le client exactement comme la campagne A1v3
                 user = perception
                 result = self.client.decide(self.system_prompt, user)
-            sent = msg.render(result.message) if result.message is not None else None
+            # hors A2, on ignore le message même si un client de test en renvoie un
+            message = result.message if channel else None
+            sent = msg.render(message) if message is not None else None
             if channel:
                 outbox[1 - i] = sent  # deux poursuivants : le message va à l'autre
             self.step_logs.append(StepLog(
@@ -101,12 +106,11 @@ class LLMPursuers(PursuerPolicy):
                 perception=perception,
                 thinking=result.thinking,
                 user_prompt=user,
-                message_in=self._inbox[i] if channel else None,
+                message_in=received,
                 message_out=sent,
                 raw_arguments=result.raw_arguments,
                 thinking_tokens=msg.count_tokens(result.thinking),
-                unknown_names=(msg.unknown_names(result.message, self.places)
-                               if result.message is not None else []),
+                unknown_names=msg.unknown_names(message, self.places) if message is not None else [],
             ))
             moves.append(result.move)
         if channel:

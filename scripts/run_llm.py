@@ -46,6 +46,7 @@ from chase.llm.client import LLMClient
 from chase.llm.config import LLMConfig
 from chase.llm.journal import EpisodeJournal
 from chase.llm.logging import EpisodeLLMStats, StepLog
+from chase.llm.message import load_tokenizer
 from chase.llm.policy import LLMPursuers
 from chase.llm.prompts import ARMS, system_prompt
 from chase.policies import Percept
@@ -187,6 +188,9 @@ def main() -> None:
               f"temps={episode_wall_s:.1f}s latence_moy={stats.mean_latency_ms:.0f}ms "
               f"replis={stats.fallback_count} msg_moy={stats.mean_message_tokens:.0f}", flush=True)
         return seed, captured, steps, confinement, stats, episode_wall_s
+
+    # chargement unique, avant les threads : truststore modifie ssl pour tout le processus
+    load_tokenizer()
 
     rows = [(s, r["captured"], r["steps"], r["confinement"], EpisodeLLMStats(**r["stats"]),
              r["wall_time_s"]) for s, r in done.items()]

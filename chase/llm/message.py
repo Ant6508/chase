@@ -38,6 +38,17 @@ _tokenizer = None
 _lock = threading.Lock()
 
 
+def _utf8(s: str) -> bool:
+    """False si `s` contient un demi-caractère de substitution isolé (par ex. un
+    emoji tronqué) : un texte pareil ne s'encode pas en UTF-8, et `count_tokens`
+    lèverait une `TypeError` plus loin (de même que l'écriture de la trace)."""
+    try:
+        s.encode("utf-8")
+        return True
+    except UnicodeEncodeError:
+        return False
+
+
 def validate(obj) -> str | None:
     """None si le message a la bonne forme, sinon la raison. Les noms de lieux ne
     sont pas vérifiés ici : un nom inconnu est transmis tel quel (voir unknown_names)."""
@@ -48,16 +59,25 @@ def validate(obj) -> str | None:
         return f"champ(s) manquant(s) : {', '.join(missing)}"
     if not isinstance(obj["moi"], str):
         return "moi n'est pas une chaîne"
+    if not _utf8(obj["moi"]):
+        return "moi n'est pas un texte UTF-8 valide"
     for f in ("cible", "je_couvre"):
-        if obj[f] is not None and not isinstance(obj[f], str):
-            return f"{f} n'est ni une chaîne ni null"
+        if obj[f] is not None:
+            if not isinstance(obj[f], str):
+                return f"{f} n'est ni une chaîne ni null"
+            if not _utf8(obj[f]):
+                return f"{f} n'est pas un texte UTF-8 valide"
     cand = obj["candidates"]
     if not isinstance(cand, dict) or not all(
             isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
             for v in cand.values()):
         return "candidates n'est pas un objet lieu -> nombre"
+    if not all(_utf8(k) for k in cand):
+        return "candidates contient une clé qui n'est pas un texte UTF-8 valide"
     if not isinstance(obj["intention"], list) or not all(isinstance(s, str) for s in obj["intention"]):
         return "intention n'est pas une liste de chaînes"
+    if not all(_utf8(s) for s in obj["intention"]):
+        return "intention contient une chaîne qui n'est pas un texte UTF-8 valide"
     return None
 
 
@@ -66,7 +86,9 @@ def render(msg: dict) -> str:
     return json.dumps(msg, ensure_ascii=False, separators=(",", ":"))
 
 
-def _get_tokenizer():
+def load_tokenizer():
+    """Charge (une fois) et renvoie le tokenizer de gemma-4-12B-it. Public pour que
+    l'appelant (scripts/run_llm.py) le charge une seule fois, avant les threads."""
     global _tokenizer
     with _lock:
         if _tokenizer is None:
@@ -84,7 +106,7 @@ def count_tokens(text: str) -> int:
     """Positions occupées par `text` dans le contexte du modèle, sans token spécial."""
     if not text:
         return 0
-    return len(_get_tokenizer().encode(text, add_special_tokens=False).ids)
+    return len(load_tokenizer().encode(text, add_special_tokens=False).ids)
 
 
 def unknown_names(msg: dict, places) -> list[str]:

@@ -41,6 +41,8 @@ def test_valid_messages_pass():
     (_msg(candidates={"C1": float("inf")}), "candidates"),
     (_msg(intention="K1"), "intention"),
     (_msg(intention=[1]), "intention"),
+    (_msg(moi="C1\ud83d"), "moi"),
+    (_msg(candidates={"C1\ud83d": 7}), "candidates"),
 ])
 def test_invalid_messages_say_why(bad, field):
     assert field in validate(bad)

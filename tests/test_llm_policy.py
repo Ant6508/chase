@@ -57,14 +57,25 @@ def test_individual_belief_matches_r1(arm):
     """La croyance individuelle de LLMPursuers doit être identique à celle de
     GreedyPursuers(fused=False) sur la même séquence de percepts : même calcul,
     aucune fusion, aucune position de coéquipier transmise (bras sans
-    communication)."""
+    communication), même quand des messages circulent en A2 (le harnais ne lit
+    jamais leur contenu pour calculer la croyance)."""
     env = ChaseEnv(CFG)
     env.reset(seed=2)
     rng = np.random.default_rng(0)
+    n_steps = 5
 
     r1 = GreedyPursuers(CFG, fused=False)
     r1.reset(env.graph, rng)
-    llm = LLMPursuers(CFG, LLM_CFG, client=FakeLLMClient([]), arm=arm)
+    if arm == "A2":
+        # message contradictoire avec la croyance réelle : s'il influençait le
+        # calcul, la comparaison avec R1 échouerait
+        results = [_say("K1", message={"moi": "K1", "cible": "K3",
+                                       "candidates": {"K5": 99, "K6": 1},
+                                       "intention": [], "je_couvre": None})
+                   for _ in range(2 * n_steps)]
+    else:
+        results = [_ok(Move.STAY) for _ in range(2 * n_steps)]
+    llm = LLMPursuers(CFG, LLM_CFG, client=FakeLLMClient(results), arm=arm)
     llm.reset(env.graph, rng)
 
     vis = env.visibility()
@@ -73,8 +84,11 @@ def test_individual_belief_matches_r1(arm):
     llm.update(percepts)
     for b1, b2 in zip(r1.beliefs(), llm.beliefs()):
         assert (b1 == b2).all()
+    for p1, p2 in zip(r1._probs, llm.probs()):
+        assert np.allclose(p1, p2)
 
-    for _ in range(5):
+    for _ in range(n_steps):
+        llm.act(percepts)
         moves = [Move.STAY] * (CFG.n_pursuers + 1)  # tout le monde immobile
         vis = env.step_moves(moves)
         percepts = _percepts(env, vis)
@@ -82,6 +96,8 @@ def test_individual_belief_matches_r1(arm):
         llm.update(percepts)
         for b1, b2 in zip(r1.beliefs(), llm.beliefs()):
             assert (b1 == b2).all()
+        for p1, p2 in zip(r1._probs, llm.probs()):
+            assert np.allclose(p1, p2)
 
 
 def test_act_returns_move_from_client():
@@ -191,14 +207,14 @@ def _say(moi: str, **changes) -> LLMCallResult:
     return LLMCallResult(**fields)
 
 
-def _two_steps(arm: str, results: list[LLMCallResult]):
+def _run_steps(arm: str, results: list[LLMCallResult], n_steps: int = 2):
     env = ChaseEnv(CFG)
     env.reset(seed=3)
     client = FakeLLMClient(results)
     policy = LLMPursuers(CFG, LLM_CFG, client=client, arm=arm)
     policy.reset(env.graph, np.random.default_rng(0))
     percepts = _percepts(env, env.visibility())
-    for _ in range(2):
+    for _ in range(n_steps):
         policy.update(percepts)
         policy.act(percepts)
         percepts = _percepts(env, env.step_moves([Move.STAY] * (CFG.n_pursuers + 1)))
@@ -206,18 +222,19 @@ def _two_steps(arm: str, results: list[LLMCallResult]):
 
 
 def test_a2_message_is_read_by_the_other_pursuer_at_the_next_step_only():
-    policy, client = _two_steps("A2", [_say("K1"), _say("K2"), _say("K3"), _say("K4")])
+    policy, client = _run_steps(
+        "A2", [_say("P0t0"), _say("P1t0"), _say("P0t1"), _say("P1t1")])
     (_, p0_t0), (_, p1_t0), (_, p0_t1), (_, p1_t1) = client.calls
     assert p0_t0.endswith(f"{MESSAGE_HEADER}\n{NO_MESSAGE}")
     assert p1_t0.endswith(f"{MESSAGE_HEADER}\n{NO_MESSAGE}")  # pas le message de P0 du même pas
-    assert p0_t1.endswith(render(_say("K2").message))
-    assert p1_t1.endswith(render(_say("K1").message))
+    assert p0_t1.endswith(render(_say("P1t0").message))
+    assert p1_t1.endswith(render(_say("P0t0").message))
     assert client.with_message == [True] * 4
     assert all(system == system_prompt("A2") for system, _ in client.calls)
 
 
 def test_a2_after_a_fallback_the_teammate_reads_no_message():
-    policy, client = _two_steps("A2", [_fallback(), _say("K2"), _say("K3"), _say("K4")])
+    policy, client = _run_steps("A2", [_fallback(), _say("K2"), _say("K3"), _say("K4")])
     _, _, (_, p0_t1), (_, p1_t1) = client.calls
     assert p1_t1.endswith(f"{MESSAGE_HEADER}\n{NO_MESSAGE}")
     assert p0_t1.endswith(render(_say("K2").message))
@@ -225,22 +242,71 @@ def test_a2_after_a_fallback_the_teammate_reads_no_message():
     assert policy.step_logs[0].message_tokens == 0
 
 
+def test_a2_fallback_message_does_not_persist_to_the_next_step():
+    """Un repli au pas 1 efface le message du poursuivant qui échoue ; son
+    coéquipier ne doit pas relire au pas 2 le message envoyé au pas 0 : la
+    boîte de réception est intégralement remplacée à chaque pas, jamais
+    fusionnée avec l'ancienne."""
+    p0t0, p1t0 = _say("P0t0"), _say("P1t0")
+    p1t1 = _say("P1t1")
+    policy, client = _run_steps("A2", [
+        p0t0, p1t0,          # pas 0 : les deux réussissent
+        _fallback(), p1t1,   # pas 1 : P0 échoue
+        _say("P0t2"), _say("P1t2"),  # pas 2
+    ], n_steps=3)
+    (_, p0_t0), (_, p1_t0), (_, p0_t1), (_, p1_t1), (_, p0_t2), (_, p1_t2) = client.calls
+    assert p1_t1.endswith(render(p0t0.message))  # pas 1 : le message de P0 au pas 0
+    assert p0_t2.endswith(render(p1t1.message))  # pas 2 : celui de P1 au pas 1
+    assert p1_t2.endswith(f"{MESSAGE_HEADER}\n{NO_MESSAGE}")  # rien de P0, en échec au pas 1
+    assert policy.step_logs[2].message_out is None
+
+
+def test_a2_reset_clears_the_inbox():
+    """Après un épisode avec des messages, un `reset` doit remettre la boîte à
+    zéro : le premier pas du nouvel épisode ne doit rien lire de l'ancien."""
+    env = ChaseEnv(CFG)
+    env.reset(seed=3)
+    client = FakeLLMClient([_say("P0old"), _say("P1old"), _say("P0new"), _say("P1new")])
+    policy = LLMPursuers(CFG, LLM_CFG, client=client, arm="A2")
+    policy.reset(env.graph, np.random.default_rng(0))
+    percepts = _percepts(env, env.visibility())
+    policy.update(percepts)
+    policy.act(percepts)  # premier épisode : la boîte se remplit
+
+    policy.reset(env.graph, np.random.default_rng(0))  # nouvel épisode
+    policy.update(percepts)
+    policy.act(percepts)
+    p0_user, p1_user = client.calls[2][1], client.calls[3][1]
+    assert p0_user.endswith(f"{MESSAGE_HEADER}\n{NO_MESSAGE}")
+    assert p1_user.endswith(f"{MESSAGE_HEADER}\n{NO_MESSAGE}")
+
+
 def test_a2_logs_message_size_thinking_raw_arguments_and_unknown_names():
-    said = _say("Z9", thinking="abcd", raw_arguments='{"direction":"STAY"}')
-    policy, _ = _two_steps("A2", [said] * 4)
-    log = policy.step_logs[0]
-    assert log.message_out == render(said.message)
+    p0t0, p1t0 = _say("P0t0"), _say("P1t0")
+    p0t1 = _say("P0t1", thinking="abcd", raw_arguments='{"direction":"STAY"}')
+    p1t1 = _say("P1t1")
+    policy, client = _run_steps("A2", [p0t0, p1t0, p0t1, p1t1])
+
+    for k, log in enumerate(policy.step_logs):
+        assert log.user_prompt == client.calls[k][1]
+    for sent, log in zip([p0t0, p1t0, p0t1, p1t1], policy.step_logs):
+        assert log.message_out == render(sent.message)
+
+    log = policy.step_logs[2]  # P0 au pas 1
     assert log.message_tokens == len(log.message_out)  # tokenizer de test : 1 token par caractère
     assert log.thinking_tokens == 4
-    assert log.unknown_names == ["Z9"]
+    assert log.unknown_names == ["P0t1"]
     assert log.raw_arguments == '{"direction":"STAY"}'
-    assert log.message_in is None
-    assert policy.step_logs[2].message_in == render(said.message)
     assert log.user_prompt.startswith(log.perception)
+
+    assert policy.step_logs[0].message_in is None
+    assert policy.step_logs[1].message_in is None
+    assert policy.step_logs[2].message_in == render(p1t0.message)  # P1 au pas 0
+    assert policy.step_logs[3].message_in == render(p0t0.message)  # P0 au pas 0
 
 
 def test_a1bis_names_places_but_has_no_message():
-    policy, client = _two_steps("A1bis", [_ok(Move.STAY)] * 4)
+    policy, client = _run_steps("A1bis", [_ok(Move.STAY)] * 4)
     assert all(user.startswith("Tu es en ") for _, user in client.calls)
     assert all(MESSAGE_HEADER not in user for _, user in client.calls)
     assert client.with_message == [False] * 4

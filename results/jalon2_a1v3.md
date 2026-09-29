@@ -25,6 +25,7 @@ Dans [`jalon2_a1v3_local/`](jalon2_a1v3_local/) :
 - journal : `journal.jsonl` ;
 - tableau par seed : `table.md` ;
 - sorties brutes : `run.log` (pilote), `run30.log`, puis `run30b.log` après la reprise ;
+- vérification par rejeu (voir [Réserves](#réserves)) : `rejeu.jsonl` et `rejeu.log` ;
 - traces pas à pas : `trace/`, analysées par `python -m scripts.analyze_trace
   results/jalon2_a1v3_local/trace --set max_steps=60 size=15 n_loops=1
   min_loop_len=6 min_spawn_dist=6`.
@@ -139,11 +140,41 @@ Colonne « Cible vue » : nombre de pas où au moins un poursuivant voit la cibl
    - Si les 16 captures étaient réparties au hasard, 12 seeds tirées en
      contiendraient 4 ou moins avec une probabilité de 0,08.
 
-   Code, fichier de modèle et paramètres de chargement sont les mêmes. On ne
-   peut pourtant pas exclure une différence de service : le serveur à
-   4 créneaux parallèles n'est pas déterministe au bit près. Pour trancher,
-   on peut rejouer, sur le serveur actuel, des décisions enregistrées avant
-   et après la reprise, puis comparer les coups.
+   Code, fichier de modèle et paramètres de chargement sont les mêmes. Pour
+   écarter une différence de service, 24 décisions ont été rejouées le
+   2026-09-29 sur le serveur de la reprise, toujours chargé
+   ([`rejeu.jsonl`](jalon2_a1v3_local/rejeu.jsonl)). Ce sont 12 décisions
+   tirées avant la pause et 12 après la reprise, choisies parmi celles à au
+   moins 2 issues praticables et renvoyées avec leur perception exacte :
+
+   ```bash
+   python -m scripts.replay_trace results/jalon2_a1v3_local/trace \
+       --groups avant=4-16,18 après=17,19-29 -n 12 --concurrency 4 \
+       --base-url http://127.0.0.1:1234/v1 --timeout 400 \
+       --out results/jalon2_a1v3_local/rejeu.jsonl
+   ```
+
+   | | Avant la pause | Après la reprise |
+   |---|---|---|
+   | Même coup | 11 / 12 | 12 / 12 |
+   | Même pensée, mot pour mot | 1 / 12 | 2 / 12 |
+
+   - **Le serveur n'a pas changé de comportement à la reprise.** Les deux
+     groupes se reproduisent aussi bien.
+   - **Le seul coup différent est un choix serré.** À la seed 14, pas 52, le
+     modèle avait pris l'ouest à 43 % de probabilité ; au rejeu, il prend le
+     sud à 40 %.
+   - **Le déficit des 12 seeds rejouées ne vient donc pas du service.** Il
+     tient au hasard des seeds et au bruit décrit ci-dessous.
+
+   Température 0 ne veut pas dire déterminisme ici. La pensée diffère
+   presque toujours d'une exécution à l'autre, y compris dans une même
+   session de serveur, parce que le calcul par lots dépend des requêtes
+   voisines. Le coup, lui, reste le même environ 23 fois sur 24. Sur une
+   partie d'une centaine de décisions, quelques coups changent quand même,
+   et la trajectoire diverge. Rejouer une seed ne rejoue donc pas l'épisode :
+   la comparaison appariée apparie des cartes et des départs, pas des
+   parties identiques.
 2. **Le matériel a changé en cours de route.** A1 et A1v2 tournaient sur
    RunPod (CUDA), A1v3 en local (Vulkan sur carte AMD). Le fichier de modèle
    est le même, mais les réponses peuvent différer à la marge, même à

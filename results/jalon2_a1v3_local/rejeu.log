@@ -1,0 +1,27 @@
+avant seed 12 pas 24 P0 : EAST -> EAST
+après seed 27 pas 51 P1 : WEST -> WEST
+avant seed 13 pas 34 P1 : WEST -> WEST
+après seed 20 pas 24 P0 : EAST -> EAST
+avant seed 5 pas 8 P0 : SOUTH -> SOUTH
+après seed 22 pas 54 P0 : WEST -> WEST
+avant seed 10 pas 12 P0 : NORTH -> NORTH
+après seed 20 pas 24 P1 : WEST -> WEST
+avant seed 16 pas 17 P1 : SOUTH -> SOUTH
+après seed 19 pas 38 P0 : EAST -> EAST
+avant seed 15 pas 1 P1 : WEST -> WEST
+après seed 22 pas 22 P0 : SOUTH -> SOUTH
+avant seed 13 pas 18 P1 : SOUTH -> SOUTH
+après seed 28 pas 20 P0 : NORTH -> NORTH
+avant seed 10 pas 57 P1 : SOUTH -> SOUTH
+après seed 29 pas 43 P1 : EAST -> EAST
+avant seed 14 pas 52 P0 : WEST -> SOUTH
+après seed 20 pas 31 P1 : EAST -> EAST
+avant seed 11 pas 53 P1 : NORTH -> NORTH
+après seed 23 pas 23 P0 : NORTH -> NORTH
+avant seed 18 pas 31 P0 : WEST -> WEST
+après seed 19 pas 42 P0 : SOUTH -> SOUTH
+avant seed 9 pas 30 P0 : WEST -> WEST
+après seed 19 pas 16 P0 : WEST -> WEST
+avant : même coup 11/12, même pensée mot pour mot 1/12, replis 0
+après : même coup 12/12, même pensée mot pour mot 2/12, replis 0
+FIN

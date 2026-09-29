@@ -59,6 +59,73 @@ proche par deux directions partage sa probabilité entre elles.
 Réponds uniquement en appelant l'outil `move` avec la direction choisie et une \
 justification brève."""
 
+# Bras A1bis et A2 (docs/superpowers/specs/2026-09-29-jalon2-a2-design.md). SYSTEM_PROMPT
+# ci-dessus reste celui de la campagne A1v3, inchangé.
+ARMS = ("A1", "A1bis", "A2")
+
+_INTRO_A1 = ("en coopération avec un coéquipier que tu ne peux PAS contacter : tu ne "
+             "connais ni sa position ni ses intentions.")
+_INTRO_A2 = "en coopération avec un coéquipier avec qui tu échanges un message à chaque pas."
+_ANSWER_A1 = ("Réponds uniquement en appelant l'outil `move` avec la direction choisie et une "
+              "justification brève.")
+_ANSWER_A2 = ("Réponds uniquement en appelant l'outil `move` avec la direction choisie, une "
+              "justification brève et ton message.")
+
+PLACES_PARAGRAPH = """Les lieux du labyrinthe portent des noms, les mêmes pour toi et \
+pour ton coéquipier. Un carrefour (case à au moins trois issues) s'appelle K1, K2…, et un \
+couloir entre deux carrefours, ou entre un carrefour et un cul-de-sac, s'appelle C1, C2… \
+Un couloir de plus de 5 cases est coupé en tronçons C7a, C7b… Une case précise se désigne \
+par son lieu et son rang, compté depuis le bout du couloir qui touche le carrefour de plus \
+petit numéro (un cul-de-sac en dernier) : C6b.3 est la 3e case du tronçon C6b. Une case de \
+carrefour porte le nom du carrefour. Sous chaque direction praticable, la perception liste \
+les lieux que tu atteins au plus court en partant par là, avec leur distance en pas ; un \
+pourcentage donne la probabilité que la cible y soit, et un lieu sans pourcentage ne \
+contient aucune case candidate. Un lieu aussi proche par deux directions figure sous les \
+deux avec sa probabilité entière : contrairement à la part d'une direction, elle ne se \
+partage pas."""
+
+CHANNEL_PARAGRAPH = """À chaque pas, tu écris un message à ton coéquipier dans le champ \
+`message` de l'outil `move`. Il le lira au pas suivant ; de même, le message qu'il t'a \
+écrit au pas précédent figure à la fin de ta perception. Ta pensée et ta justification \
+restent privées : seul le message lui parvient. Le message a cinq champs, tous \
+obligatoires :
+- `moi` : ta case, pour vous répartir la recherche et préparer une prise en tenaille ;
+- `cible` : la case de la cible si tu la vois, sinon null ;
+- `candidates` : les lieux où la cible peut être d'après ta perception, avec leur \
+probabilité en pourcentage entier ;
+- `intention` : les prochains lieux que tu comptes traverser, dans l'ordre ;
+- `je_couvre` : le lieu que tu bloques ou gardes, sinon null.
+Un lieu absent des `candidates` d'un message a été vu vide par son auteur au pas \
+précédent : la cible n'y est presque sûrement pas.
+Exemple : {"moi":"C2a.3","cible":null,"candidates":{"C7a":7,"C9":6,"K3":2},\
+"intention":["K1","C4a"],"je_couvre":null}"""
+
+MESSAGE_HEADER = "Message de ton coéquipier (écrit au pas précédent) :"
+NO_MESSAGE = "Aucun message reçu."
+
+
+def system_prompt(arm: str) -> str:
+    """A1 : le prompt de la campagne A1v3. A1bis : le même, plus les lieux. A2 : les
+    lieux et le canal de message, avec la phrase sur le coéquipier remplacée."""
+    if arm not in ARMS:
+        raise ValueError(f"bras inconnu : {arm}")
+    if arm == "A1":
+        return SYSTEM_PROMPT
+    if _INTRO_A1 not in SYSTEM_PROMPT or not SYSTEM_PROMPT.endswith(_ANSWER_A1):
+        raise AssertionError("SYSTEM_PROMPT a changé : revoir system_prompt()")
+    body = SYSTEM_PROMPT.removesuffix(_ANSWER_A1) + PLACES_PARAGRAPH + "\n\n"
+    if arm == "A1bis":
+        return body + _ANSWER_A1
+    return body.replace(_INTRO_A1, _INTRO_A2) + CHANNEL_PARAGRAPH + "\n\n" + _ANSWER_A2
+
+
+def message_block(rendered: str | None) -> str:
+    """Fin du prompt utilisateur en A2 : l'en-tête fixe, puis le message reçu tel que
+    réécrit par `message.render`, ou son absence (premier pas, repli du coéquipier).
+    C'est l'emplacement où A4 injectera ses vecteurs."""
+    return f"{MESSAGE_HEADER}\n{NO_MESSAGE if rendered is None else rendered}"
+
+
 _DIRS = (Move.NORTH, Move.SOUTH, Move.EAST, Move.WEST)
 _LABELS = {Move.NORTH: "NORD", Move.SOUTH: "SUD", Move.EAST: "EST", Move.WEST: "OUEST"}
 

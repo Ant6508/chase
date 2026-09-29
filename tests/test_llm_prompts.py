@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
+import pytest
 
 from chase.graph import MazeGraph
-from chase.llm.prompts import build_perception
+from chase.llm.message import validate
+from chase.llm.prompts import (CHANNEL_PARAGRAPH, MESSAGE_HEADER, NO_MESSAGE, PLACES_PARAGRAPH,
+                               SYSTEM_PROMPT, build_perception, message_block, system_prompt)
 from chase.llm.places import Places
 
 
@@ -235,3 +240,38 @@ def test_without_places_the_perception_is_the_a1v3_one():
                 if not line.startswith("Tu es en") and not line.startswith("  lieux par là")]
     assert stripped == without.splitlines()
     assert "Tu es en" not in without and "lieux par là" not in without
+
+
+def test_a1_system_prompt_is_the_a1v3_one():
+    assert system_prompt("A1") == SYSTEM_PROMPT
+
+
+def test_a1bis_adds_the_places_and_keeps_the_teammate_out_of_reach():
+    text = system_prompt("A1bis")
+    assert PLACES_PARAGRAPH in text
+    assert "que tu ne peux PAS contacter" in text
+    assert "message" not in text
+    assert text.endswith("avec la direction choisie et une justification brève.")
+
+
+def test_a2_adds_places_and_channel_and_asks_for_the_message():
+    text = system_prompt("A2")
+    assert PLACES_PARAGRAPH in text and CHANNEL_PARAGRAPH in text
+    assert "ne peux PAS contacter" not in text
+    assert "avec qui tu échanges un message à chaque pas" in text
+    assert text.endswith("une justification brève et ton message.")
+
+
+def test_channel_example_is_a_valid_message():
+    example = json.loads(CHANNEL_PARAGRAPH.split("Exemple : ", 1)[1])
+    assert validate(example) is None
+
+
+def test_unknown_arm_is_refused():
+    with pytest.raises(ValueError, match="bras inconnu"):
+        system_prompt("A3")
+
+
+def test_message_block_shows_the_message_or_its_absence():
+    assert message_block('{"moi":"K1"}') == f'{MESSAGE_HEADER}\n{{"moi":"K1"}}'
+    assert message_block(None) == f"{MESSAGE_HEADER}\n{NO_MESSAGE}"

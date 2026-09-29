@@ -89,3 +89,13 @@ def test_hidden_moves_toward_the_most_probable_exit_are_counted():
     c = summarize(records, _graph())
     assert c["cachée_vers_plus_probable"] == 1
     assert c["cachée_vers_plus_proche"] == 0
+
+
+def test_visible_target_is_recognized_after_the_position_line_of_a1bis_and_a2():
+    records = [{"seed": 3, "step": 0, "pursuer": 0, "pos": [1, 1], "target": [1, 3],
+                "move": "SOUTH", "fallback": False, "retries": 0, "completion_tokens": 1,
+                "reasoning": "", "thinking": "",
+                "perception": "Tu es en C1.1.\nCible visible en C1.3, à 2 pas par les couloirs "
+                              "(à vol d'oiseau : 2 cases au sud).\nDirections :"}]
+    c = summarize(records, _graph())
+    assert c["cible_vue"] == 1 and c["cible_cachée"] == 0

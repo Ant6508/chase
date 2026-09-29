@@ -64,7 +64,7 @@ def summarize(records: list[dict], g: MazeGraph) -> Counter:
             else:
                 c["contre_un_mur"] += 1
 
-        if r["perception"].startswith("Cible visible"):
+        if "Cible visible" in r["perception"]:  # après la ligne « Tu es en … » d'A1bis et A2
             c["cible_vue"] += 1
             before = g.dist[g.index[pos], g.index[target]]
             after = g.dist[g.index[nxt], g.index[target]]

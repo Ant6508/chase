@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 
 import numpy as np
@@ -243,7 +244,11 @@ def test_without_places_the_perception_is_the_a1v3_one():
 
 
 def test_a1_system_prompt_is_the_a1v3_one():
+    # Empreinte du prompt de la campagne A1v3 (commit 3145e07) : un échec signale
+    # une dérive accidentelle du texte, pas un test à mettre à jour.
     assert system_prompt("A1") == SYSTEM_PROMPT
+    assert hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest() == (
+        "4c2476ac22534b2a69fe9007058130596e169b0e18068dc53c65541a3d0208bd")
 
 
 def test_a1bis_adds_the_places_and_keeps_the_teammate_out_of_reach():

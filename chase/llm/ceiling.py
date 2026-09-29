@@ -24,6 +24,7 @@ import numpy as np
 from ..belief import diffuse, observe, observe_prob, propagate
 from ..config import ChaseConfig
 from ..graph import MazeGraph
+from ..moves import Move
 from ..policies import GreedyPursuers, Percept
 from .places import Places
 
@@ -41,7 +42,9 @@ def write_message(g: MazeGraph, places: Places, pos: tuple[int, int], belief: np
         cells = np.array(place.cells, dtype=np.int64)
         xs, ys = g.xy[cells, 0], g.xy[cells, 1]
         if belief[xs, ys].any():
-            candidates[place.name] = int(round(100 * float(prob[xs, ys].sum())))
+            # au moins 1 : à 0, un lieu candidat se confondrait avec un lieu vu vide,
+            # alors que la perception dit seulement « moins de 1 % ».
+            candidates[place.name] = max(1, int(round(100 * float(prob[xs, ys].sum()))))
     intention: list[str] = []
     for c in path_ahead:
         name = places.places[places.place_of[c]].name
@@ -108,13 +111,28 @@ class ProtocolPursuers(GreedyPursuers):
             # sans message reçu (premier pas), le coéquipier est inconnu : décision de R1
             self.fused = self._inbox[i] is not None
             moves.append(self._act_one(i, p))
+        # P2 est fondamentalement un poursuivant fusionné (hérité de
+        # GreedyPursuers(fused=True)) : la bascule à False ci-dessus n'est qu'un
+        # artifice local, pas à pas, pour le tout premier message (aucun reçu).
+        # _act_one lit self.fused (chase/policies.py) pour calculer `me`, et
+        # _team_positions (ci-dessous) en dépend aussi : avec fused=False, elle
+        # renvoie une équipe réduite à [here], sans coéquipier. Si on laissait
+        # self.fused à False après la boucle, le poursuivant perdrait son
+        # coéquipier de vue (team = [here]) pour tout ce qui suit — écriture du
+        # chemin prévu, prochains appels — alors qu'un message vient justement
+        # d'être échangé.
         self.fused = True
+        # Décider avant d'écrire, pour toute l'équipe avant de rien stocker : sinon
+        # le pursuivant traité en second lirait, via self._inbox, le message que
+        # son coéquipier vient d'écrire à cette même itération (message « au même
+        # pas », zéro délai) au lieu de celui reçu à l'itération précédente. Voir
+        # test_decision_loop_never_sees_a_message_written_this_same_act_call.
         outbox: list[dict | None] = [None] * len(percepts)
         for i, p in enumerate(percepts):
             here = int(self.g.index[p.pos])
             outbox[1 - i] = write_message(self.g, self.places, p.pos, self._own[i],
                                           self._own_p[i], p.target_seen,
-                                          self._path_ahead(i, here))
+                                          self._path_ahead(i, here, moves[i]))
         self.sent = [outbox[1], outbox[0]]
         self._inbox = outbox
         return moves
@@ -126,19 +144,30 @@ class ProtocolPursuers(GreedyPursuers):
         mate = self.places.cell_by_name[self._inbox[i]["moi"]]
         return [here if k == i else mate for k in range(self.cfg.n_pursuers)]
 
-    def _path_ahead(self, i: int, here: int, steps: int = INTENTION_STEPS) -> list[int]:
-        """Début du plus court chemin vers l'objectif courant, ou vers la candidate la
-        plus proche quand la cible est localisée. Départage déterministe : le générateur
-        aléatoire des décisions n'est pas consommé."""
+    def _path_ahead(self, i: int, here: int, move: Move,
+                    steps: int = INTENTION_STEPS) -> list[int]:
+        """Début du chemin réellement prévu : la case où mène le coup joué (rien si ce
+        coup est STAY ou bute contre un mur), puis, au plus court, vers l'objectif
+        courant en exploration ou vers la candidate la plus proche en poursuite,
+        jusqu'à `steps` cases en tout. La première case suit le coup effectivement
+        joué (la tenaille, à plusieurs, diffère du plus court chemin vers une
+        candidate) ; le reste départage déterministement, sans consommer le
+        générateur aléatoire des décisions."""
         g = self.g
+        path: list[int] = []
+        cur = here
+        if move != Move.STAY:
+            nxt = next((n for n in g.neighbors[cur] if g.move_between(cur, n) == move), None)
+            if nxt is not None:
+                path.append(nxt)
+                cur = nxt
         goal = self._goals[i]
         if goal is None:
             cand = g.index[self._beliefs[i]]
             if len(cand) == 0:
-                return []
-            goal = int(cand[np.argmin(g.dist[here, cand])])
+                return path
+            goal = int(cand[np.argmin(g.dist[cur, cand])])
         field = g.dist[:, goal]
-        path, cur = [], here
         while len(path) < steps and field[cur] > 0:
             cur = min(n for n in g.neighbors[cur] if field[n] == field[cur] - 1)
             path.append(cur)

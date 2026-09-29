@@ -27,6 +27,7 @@ import numpy as np
 
 from ..graph import MazeGraph
 from ..moves import MOVE_DELTAS, Move
+from .places import Places
 
 SYSTEM_PROMPT = """Tu es un poursuivant dans un labyrinthe, en coopération avec \
 un coéquipier que tu ne peux PAS contacter : tu ne connais ni sa position ni ses \
@@ -84,9 +85,13 @@ def _pct(p: float) -> str:
 
 def build_perception(pos: tuple[int, int], g: MazeGraph, belief: np.ndarray,
                       prob: np.ndarray, target_seen: tuple[int, int] | None,
-                      track_threshold: int) -> str:
+                      track_threshold: int, places: Places | None = None) -> str:
     """Résumé structuré par direction de ce que perçoit un poursuivant.
-    `prob` est la carte de probabilité posée sur l'ensemble candidat `belief`."""
+    `prob` est la carte de probabilité posée sur l'ensemble candidat `belief`.
+
+    Avec `places` (bras A1bis et A2), la perception nomme la position, la case de la
+    cible, les lieux desservis par chaque issue et les cases candidates. Sans
+    `places`, elle est identique au caractère près au format de la campagne A1v3."""
     here = g.index[pos]
     exits = {}  # direction praticable -> case voisine
     for d in _DIRS:
@@ -103,13 +108,18 @@ def build_perception(pos: tuple[int, int], g: MazeGraph, belief: np.ndarray,
     ties = np.maximum(sum(first.values(), np.zeros(len(cand))), 1)  # issues à égalité par case
 
     lines: list[str] = []
+    if places is not None:
+        lines.append(_position_line(here, g, belief, prob, places))
     if target_seen is not None:
         steps = int(g.dist[here, g.index[target_seen]])
         offset = _cardinal(target_seen[0] - pos[0], target_seen[1] - pos[1])
-        lines.append(f"Cible visible, à {steps} pas par les couloirs (à vol d'oiseau : {offset}).")
+        where = f" en {places.cell_name[g.index[target_seen]]}" if places is not None else ""
+        lines.append(f"Cible visible{where}, à {steps} pas par les couloirs "
+                     f"(à vol d'oiseau : {offset}).")
     else:
         lines.append("Cible non visible.")
 
+    served = _places_by_exit(here, exits, g, belief, prob, places) if places is not None else {}
     lines.append("Directions :")
     for d in _DIRS:
         if d not in exits:
@@ -123,13 +133,56 @@ def build_perception(pos: tuple[int, int], g: MazeGraph, belief: np.ndarray,
                          f"la plus proche à {int(dist[first[d]].min())} pas")
         else:
             lines.append(f"- {_LABELS[d]} : praticable ; aucune case candidate au plus court par là")
+        if d in served:
+            lines.append(f"  lieux par là : {served[d]}")
 
     lines.append(f"Ensemble candidat total : {len(cand)} case(s).")
     if len(cand) and len(cand) <= track_threshold:
         listed = " ; ".join(
+            f"{places.cell_name[cand[k]] + ' ' if places is not None else ''}"
             f"à {int(dist[k])} pas par {', '.join(_LABELS[d] for d in exits if first[d][k])}"
             f" ({_pct(float(mass[k]))})"
             for k in np.argsort(dist, kind="stable"))
         lines.append(f"Cases candidates : {listed}.")
 
     return "\n".join(lines)
+
+
+def _position_line(here: int, g: MazeGraph, belief: np.ndarray, prob: np.ndarray,
+                   places: Places) -> str:
+    """« Tu es en C2a.3. », avec la part de probabilité des autres cases candidates de
+    son lieu s'il en reste (sa propre case, toujours vue, n'est jamais candidate)."""
+    place = places.places[places.place_of[here]]
+    others = np.array([c for c in place.cells if c != here], dtype=np.int64)
+    xs, ys = g.xy[others, 0], g.xy[others, 1]
+    if len(others) and belief[xs, ys].any():
+        share = float(prob[xs, ys].sum())
+        return (f"Tu es en {places.cell_name[here]} "
+                f"(ton lieu {place.name} contient des candidates : {_pct(share)}).")
+    return f"Tu es en {places.cell_name[here]}."
+
+
+def _places_by_exit(here: int, exits: dict, g: MazeGraph, belief: np.ndarray,
+                    prob: np.ndarray, places: Places) -> dict[Move, str]:
+    """Pour chaque issue praticable, les lieux dont la case la plus proche s'atteint au
+    plus court par là, triés par distance puis dans l'ordre de la liste des lieux
+    (K1…, puis C1…). Un lieu aussi proche par deux issues figure sous les deux. Le
+    pourcentage n'est donné que pour un lieu qui contient une case candidate."""
+    served: dict[Move, list] = {d: [] for d in exits}
+    mine = places.place_of[here]
+    for k, place in enumerate(places.places):
+        if k == mine:
+            continue
+        cells = np.array(place.cells, dtype=np.int64)
+        d = g.dist[here, cells]
+        dmin = int(d.min())
+        near = cells[d == dmin]
+        xs, ys = g.xy[cells, 0], g.xy[cells, 1]
+        label = f"{place.name} à {dmin}"
+        if belief[xs, ys].any():
+            label += f" ({_pct(float(prob[xs, ys].sum()))})"
+        for move, n in exits.items():
+            if (g.dist[n, near] == dmin - 1).any():
+                served[move].append((dmin, k, label))
+    return {move: ", ".join(label for _, _, label in sorted(items)) or "aucun"
+            for move, items in served.items()}

@@ -6,6 +6,7 @@ import numpy as np
 
 from chase.graph import MazeGraph
 from chase.llm.prompts import build_perception
+from chase.llm.places import Places
 
 
 def _open_room() -> MazeGraph:
@@ -142,3 +143,79 @@ def test_candidate_list_shown_only_under_threshold():
 
     text_above = _perceive((3, 3), g, _belief(g, (3, 1), (3, 5), (5, 3)), track_threshold=2)
     assert "Cases candidates :" not in text_above
+
+
+def _t_shape() -> MazeGraph:
+    """Couloir est-ouest de (1,1) à (5,1) et branche sud de (3,2) à (3,5) :
+    K1 = (3,1) ; C1 = (2,1), (1,1) ; C2 = (4,1), (5,1) ; C3 = (3,2) … (3,5)."""
+    free = np.zeros((9, 9), dtype=bool)
+    free[1:6, 1] = True
+    free[3, 2:6] = True
+    return MazeGraph(free)
+
+
+def _ring() -> MazeGraph:
+    """Anneau de (2,2) à (4,4) autour d'un mur, avec un cul-de-sac au nord en (3,1)
+    et un au sud en (3,5). K1 = (3,2), K2 = (3,4), à 4 pas l'un de l'autre par l'ouest
+    comme par l'est ; C1 = (3,1), C2 = arc ouest, C3 = arc est, C4 = (3,5)."""
+    free = np.zeros((9, 9), dtype=bool)
+    for c in [(3, 1), (2, 2), (3, 2), (4, 2), (2, 3), (4, 3), (2, 4), (3, 4), (4, 4), (3, 5)]:
+        free[c] = True
+    return MazeGraph(free)
+
+
+def _perceive_places(pos, g, belief, target_seen=None, track_threshold=8) -> str:
+    prob = belief / belief.sum() if belief.any() else np.zeros(belief.shape)
+    return build_perception(pos, g, belief, prob, target_seen, track_threshold,
+                            Places.from_graph(g))
+
+
+def test_places_name_the_position_the_exits_and_the_candidates():
+    g = _t_shape()
+    text = _perceive_places((3, 3), g, _belief(g, (1, 1), (3, 5)))
+    assert text.splitlines() == [
+        "Tu es en C3.2 (ton lieu C3 contient des candidates : 50 %).",
+        "Cible non visible.",
+        "Directions :",
+        "- NORD : praticable ; 1 case candidate au plus court par là "
+        "(50 % de la probabilité), la plus proche à 4 pas",
+        "  lieux par là : K1 à 2, C1 à 3 (50 %), C2 à 3",
+        "- SUD : praticable ; 1 case candidate au plus court par là "
+        "(50 % de la probabilité), la plus proche à 2 pas",
+        "  lieux par là : aucun",
+        "- EST : mur",
+        "- OUEST : mur",
+        "Ensemble candidat total : 2 case(s).",
+        "Cases candidates : C3.4 à 2 pas par SUD (50 %) ; C1.2 à 4 pas par NORD (50 %).",
+    ]
+
+
+def test_visible_target_is_named_and_a_junction_has_no_candidate_note():
+    g = _t_shape()
+    text = _perceive_places((3, 1), g, _belief(g, (1, 1)), target_seen=(1, 1))
+    assert text.splitlines()[:2] == [
+        "Tu es en K1.",
+        "Cible visible en C1.2, à 2 pas par les couloirs (à vol d'oiseau : 2 cases à l'ouest).",
+    ]
+
+
+def test_a_place_as_close_by_two_exits_is_listed_under_both():
+    g = _ring()
+    text = _perceive_places((3, 2), g, _belief(g))
+    lines = text.splitlines()
+    north = lines.index("- NORD : praticable ; aucune case candidate au plus court par là")
+    assert lines[north + 1] == "  lieux par là : C1 à 1"
+    assert "  lieux par là : C3 à 1, K2 à 4, C4 à 5" in lines   # sous EST
+    assert "  lieux par là : C2 à 1, K2 à 4, C4 à 5" in lines   # sous OUEST
+    assert text.count("K2 à 4") == 2
+
+
+def test_without_places_the_perception_is_the_a1v3_one():
+    g = _t_shape()
+    belief = _belief(g, (1, 1), (3, 5))
+    with_places = _perceive_places((3, 3), g, belief, track_threshold=1)
+    without = _perceive((3, 3), g, belief, track_threshold=1)
+    stripped = [line for line in with_places.splitlines()
+                if not line.startswith("Tu es en") and not line.startswith("  lieux par là")]
+    assert stripped == without.splitlines()
+    assert "Tu es en" not in without and "lieux par là" not in without

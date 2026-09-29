@@ -56,6 +56,20 @@ def test_t_shape_names_follow_reading_order_and_start_at_the_junction():
     assert _names(places, g, [(3, 2), (3, 3), (3, 4), (3, 5)]) == ["C3.1", "C3.2", "C3.3", "C3.4"]
 
 
+def test_single_cell_corridor_between_two_junctions():
+    """Couloir d'une seule case entre deux carrefours (cas réel des cartes générées) :
+    couloir est-ouest de (1,2) à (5,2), avec un carrefour en (2,2) et un autre en (4,2)."""
+    free = np.zeros((7, 7), dtype=bool)
+    for x, y in [(1, 2), (2, 2), (3, 2), (4, 2), (5, 2),
+                 (2, 1), (2, 3), (4, 1), (4, 3)]:
+        free[x, y] = True
+    g = MazeGraph(free)
+    places = Places.from_graph(g)
+    assert [p.name for p in places.places] == ["K1", "K2", "C1", "C2", "C3", "C4", "C5", "C6", "C7"]
+    assert _names(places, g, [(3, 2)]) == ["C4.1"]
+    assert places.by_name["C4"].cells == (g.index[3, 2],)
+
+
 def test_long_corridor_is_cut_into_balanced_segments():
     g = _t_shape(south_len=7)
     places = Places.from_graph(g)

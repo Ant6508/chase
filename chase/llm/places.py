@@ -93,9 +93,15 @@ def _chain(g: MazeGraph, start: int, degree: list[int], rank: dict[int, int],
         return (0, min(near), position[u]) if near else (1, 0, position[u])
 
     ends = [u for u in comp if sum(v in comp for v in g.neighbors[u]) <= 1] or list(comp)
-    chain = [min(ends, key=end_key)]
+    first = min(ends, key=end_key)
+    chain = [first]
+    prev = None
     while True:
-        nxt = [v for v in g.neighbors[chain[-1]] if v in comp and v not in chain]
-        if not nxt:
+        # dans le sous-graphe du couloir, au plus deux voisines : celle qui n'est
+        # pas la précédente prolonge la chaîne
+        nxt = [v for v in g.neighbors[chain[-1]] if v in comp and v != prev]
+        if not nxt or nxt[0] == first:
+            # plus de voisine, ou retour à la case de départ (composante en cycle pur)
             return chain
+        prev = chain[-1]
         chain.append(nxt[0])

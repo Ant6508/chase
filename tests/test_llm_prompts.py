@@ -210,6 +210,22 @@ def test_a_place_as_close_by_two_exits_is_listed_under_both():
     assert text.count("K2 à 4") == 2
 
 
+def test_a_place_percentage_is_not_split_between_the_two_exits_that_reach_it():
+    """Deux pourcentages coexistent et ne se calculent pas pareil. Celui de la ligne
+    d'issue est une part : une case candidate à égalité entre EST et OUEST partage sa
+    probabilité entre les deux (50 % chacun). Celui d'un lieu, dans « lieux par là »,
+    est la probabilité que la cible soit dans ce lieu : elle ne se partage pas, et
+    figure entière (100 %) sous chacune des deux issues qui l'atteignent au plus court."""
+    g = _ring()
+    text = _perceive_places((3, 2), g, _belief(g, (3, 4)))  # une seule candidate : K2
+    lines = text.splitlines()
+    assert ("- EST : praticable ; 1 case candidate au plus court par là "
+            "(50 % de la probabilité), la plus proche à 4 pas") in lines
+    assert ("- OUEST : praticable ; 1 case candidate au plus court par là "
+            "(50 % de la probabilité), la plus proche à 4 pas") in lines
+    assert text.count("K2 à 4 (100 %)") == 2
+
+
 def test_without_places_the_perception_is_the_a1v3_one():
     g = _t_shape()
     belief = _belief(g, (1, 1), (3, 5))

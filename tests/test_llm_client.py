@@ -121,3 +121,60 @@ def test_decide_without_chain_of_thought_leaves_thinking_empty():
     client = LMStudioClient(CFG, client=fake)
     result = client.decide("système", "perception")
     assert result.thinking == ""
+
+
+from chase.llm.message import MESSAGE_SCHEMA
+
+_MSG = {"moi": "C2a.3", "cible": None, "candidates": {"C7a": 7}, "intention": ["K1"],
+        "je_couvre": None}
+
+
+def _args_response(args: dict):
+    call = SimpleNamespace(function=SimpleNamespace(arguments=json.dumps(args)))
+    message = SimpleNamespace(tool_calls=[call])
+    return SimpleNamespace(choices=[SimpleNamespace(message=message)],
+                           usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5))
+
+
+def test_message_parameter_is_declared_only_for_the_channel():
+    with_msg = {"direction": "STAY", "reasoning": "r", "message": _MSG}
+    fake = _FakeOpenAI([_tool_call_response("STAY"), _args_response(with_msg)])
+    client = LMStudioClient(CFG, client=fake)
+    client.decide("système", "perception")
+    client.decide("système", "perception", with_message=True)
+    without, with_ = (c["tools"][0]["function"]["parameters"] for c in fake.chat.completions.calls)
+    assert "message" not in without["properties"] and "message" not in without["required"]
+    assert with_["properties"]["message"] == MESSAGE_SCHEMA
+    assert with_["required"] == ["direction", "reasoning", "message"]
+
+
+def test_valid_message_and_raw_arguments_are_returned():
+    args = {"direction": "EAST", "reasoning": "r", "message": _MSG}
+    fake = _FakeOpenAI([_args_response(args)])
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+    assert result.move == Move.EAST
+    assert result.message == _MSG
+    assert result.raw_arguments == json.dumps(args)
+
+
+def test_invalid_message_is_retried_then_accepted():
+    bad = {"direction": "EAST", "reasoning": "r", "message": {**_MSG, "intention": "K1"}}
+    good = {"direction": "WEST", "reasoning": "r", "message": _MSG}
+    fake = _FakeOpenAI([_args_response(bad), _args_response(good)])
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+    assert (result.move, result.retries, result.message) == (Move.WEST, 1, _MSG)
+
+
+def test_missing_message_exhausts_retries_and_falls_back_without_message():
+    no_msg = {"direction": "EAST", "reasoning": "r"}
+    fake = _FakeOpenAI([_args_response(no_msg)] * 3)
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+    assert result.fallback is True and result.move == Move.STAY and result.message is None
+    assert "message invalide" in result.reasoning
+
+
+def test_message_is_ignored_outside_the_channel():
+    args = {"direction": "EAST", "reasoning": "r", "message": "n'importe quoi"}
+    fake = _FakeOpenAI([_args_response(args)])
+    result = LMStudioClient(CFG, client=fake).decide("s", "p")
+    assert result.move == Move.EAST and result.message is None and result.fallback is False

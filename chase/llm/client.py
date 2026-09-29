@@ -16,6 +16,7 @@ from openai import OpenAI
 
 from ..moves import Move
 from .config import LLMConfig
+from .message import MESSAGE_SCHEMA, validate
 
 _MOVE_TOOL = {
     "type": "function",
@@ -40,6 +41,19 @@ _MOVE_TOOL = {
 }
 
 
+def _move_tool(with_message: bool) -> dict:
+    """L'outil `move`, avec le paramètre `message` obligatoire en A2 seulement."""
+    if not with_message:
+        return _MOVE_TOOL
+    fn = _MOVE_TOOL["function"]
+    params = fn["parameters"]
+    return {"type": "function", "function": {**fn, "parameters": {
+        **params,
+        "properties": {**params["properties"], "message": MESSAGE_SCHEMA},
+        "required": [*params["required"], "message"],
+    }}}
+
+
 @dataclass
 class LLMCallResult:
     move: Move
@@ -50,22 +64,26 @@ class LLMCallResult:
     retries: int
     fallback: bool
     thinking: str = ""  # chaîne de pensée émise avant l'appel d'outil (`reasoning_content`)
+    message: dict | None = None  # message validé (A2) ; None hors canal ou en repli
+    raw_arguments: str = ""      # arguments bruts de l'appel d'outil (A4 y situera le message)
 
 
 class LLMClient(Protocol):
-    def decide(self, system_prompt: str, user_prompt: str) -> LLMCallResult: ...
+    def decide(self, system_prompt: str, user_prompt: str,
+               with_message: bool = False) -> LLMCallResult: ...
 
 
-def _parse_tool_call(response) -> tuple[str, str] | None:
+def _parse_tool_call(response) -> tuple[str, str, dict, str] | None:
+    """(direction, justification, arguments décodés, arguments bruts), ou None."""
     try:
-        call = response.choices[0].message.tool_calls[0]
-        args = json.loads(call.function.arguments)
+        raw = response.choices[0].message.tool_calls[0].function.arguments
+        args = json.loads(raw)
         direction = args["direction"]
     except (IndexError, AttributeError, KeyError, TypeError, json.JSONDecodeError):
         return None
-    if direction not in Move.__members__:
+    if not isinstance(direction, str) or direction not in Move.__members__:
         return None
-    return direction, str(args.get("reasoning", ""))
+    return direction, str(args.get("reasoning", "")), args, raw
 
 
 class LMStudioClient:
@@ -75,7 +93,8 @@ class LMStudioClient:
         self.cfg = cfg
         self._client = client or OpenAI(base_url=cfg.base_url, api_key="lm-studio")
 
-    def decide(self, system_prompt: str, user_prompt: str) -> LLMCallResult:
+    def decide(self, system_prompt: str, user_prompt: str,
+               with_message: bool = False) -> LLMCallResult:
         last_error: Exception | None = None
         for attempt in range(self.cfg.max_retries + 1):
             t0 = time.monotonic()
@@ -89,7 +108,7 @@ class LMStudioClient:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
-                    tools=[_MOVE_TOOL],
+                    tools=[_move_tool(with_message)],
                     tool_choice="required",
                 )
             except Exception as exc:
@@ -100,7 +119,14 @@ class LMStudioClient:
             if parsed is None:
                 last_error = ValueError("réponse sans appel d'outil valide")
                 continue
-            direction, reasoning = parsed
+            direction, reasoning, args, raw = parsed
+            message = None
+            if with_message:
+                message = args.get("message")
+                problem = validate(message)
+                if problem is not None:
+                    last_error = ValueError(f"message invalide : {problem}")
+                    continue
             usage = response.usage
             thinking = getattr(response.choices[0].message, "reasoning_content", None) or ""
             return LLMCallResult(
@@ -112,6 +138,8 @@ class LMStudioClient:
                 retries=attempt,
                 fallback=False,
                 thinking=thinking,
+                message=message,
+                raw_arguments=raw,
             )
         return LLMCallResult(
             move=Move.STAY,

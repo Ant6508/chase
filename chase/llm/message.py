@@ -68,6 +68,11 @@ def _get_tokenizer():
     global _tokenizer
     with _lock:
         if _tokenizer is None:
+            # Un antivirus ou un proxy peut intercepter TLS : le système reconnaît son
+            # certificat, mais pas le paquet certifi utilisé par huggingface_hub. On
+            # bascule donc httpx sur les certificats du système avant le téléchargement.
+            import truststore
+            truststore.inject_into_ssl()
             from tokenizers import Tokenizer
             _tokenizer = Tokenizer.from_pretrained(TOKENIZER_REPO)
     return _tokenizer

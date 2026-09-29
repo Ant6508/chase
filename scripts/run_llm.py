@@ -21,6 +21,12 @@ le script tourne sur le pod lui-même (voir scripts/pod/).
 --trace DIR écrit, pour le diagnostic, un fichier DIR/seed_<n>.jsonl par
 épisode : une ligne par décision (perception envoyée, pensée du modèle, coup,
 positions vraies du poursuivant et de la cible), au fil de l'eau.
+
+--arm choisit le bras : A1 (perception de la campagne A1v3, par défaut), A1bis
+(lieux nommés, sans communication) ou A2 (lieux nommés et message JSON au
+coéquipier). Avec --trace, le prompt système du bras est écrit dans
+DIR/system_prompt.txt, et chaque décision garde le prompt utilisateur complet,
+les messages reçu et émis et les arguments bruts : le jeu de données d'A4.
 """
 
 from __future__ import annotations
@@ -41,6 +47,7 @@ from chase.llm.config import LLMConfig
 from chase.llm.journal import EpisodeJournal
 from chase.llm.logging import EpisodeLLMStats, StepLog
 from chase.llm.policy import LLMPursuers
+from chase.llm.prompts import ARMS, system_prompt
 from chase.policies import Percept
 from chase.target import ScriptedTarget
 
@@ -55,16 +62,22 @@ def _trace_record(seed: int, step: int, target: tuple[int, int], log: StepLog) -
             "pos": [int(v) for v in log.pos], "target": [int(v) for v in target],
             "move": log.move.name, "fallback": log.fallback, "retries": log.retries,
             "completion_tokens": log.completion_tokens, "perception": log.perception,
-            "reasoning": log.reasoning, "thinking": log.thinking}
+            "reasoning": log.reasoning, "thinking": log.thinking,
+            # A1bis et A2 : de quoi reconstruire chaque échange (jeu de données d'A4)
+            "user_prompt": log.user_prompt, "message_in": log.message_in,
+            "message_out": log.message_out, "raw_arguments": log.raw_arguments,
+            "message_tokens": log.message_tokens, "thinking_tokens": log.thinking_tokens,
+            "unknown_names": log.unknown_names}
 
 
 def run_llm_episode(cfg: ChaseConfig, llm_cfg: LLMConfig, seed: int,
                      on_step: Callable[[ChaseEnv, LLMPursuers], None] | None = None,
-                     trace_path: str | None = None, client: LLMClient | None = None):
+                     trace_path: str | None = None, client: LLMClient | None = None,
+                     arm: str = "A1"):
     env = ChaseEnv(cfg)
     env.reset(seed=seed)
     rngs = episode_rngs(seed)
-    policy = LLMPursuers(cfg, llm_cfg, client=client)
+    policy = LLMPursuers(cfg, llm_cfg, client=client, arm=arm)
     policy.reset(env.graph, rngs["pursuers"])
     target = ScriptedTarget(env.graph, rngs["target"], cfg.target_memory, cfg.target_cycle_bias)
 
@@ -120,6 +133,8 @@ def main() -> None:
     parser.add_argument("--timeout", type=float,
                         help="délai par appel en secondes (défaut : LLMConfig.timeout_s) ; "
                              "à allonger sur un GPU lent")
+    parser.add_argument("--arm", choices=ARMS, default="A1",
+                        help="A1 : perception A1v3 ; A1bis : lieux nommés ; A2 : lieux et message")
     args = parser.parse_args()
 
     cfg = ChaseConfig().replace(**_parse_overrides(args.set))
@@ -131,6 +146,8 @@ def main() -> None:
     seeds = list(range(args.first_seed, args.first_seed + args.episodes))
     if args.trace:
         os.makedirs(args.trace, exist_ok=True)
+        with open(os.path.join(args.trace, "system_prompt.txt"), "w", encoding="utf-8") as f:
+            f.write(system_prompt(args.arm))
 
     journal = None
     done: dict[int, dict] = {}
@@ -138,7 +155,11 @@ def main() -> None:
         # l'adresse du serveur n'entre pas dans les paramètres : même modèle en local
         # ou sur le pod, un run peut reprendre de l'un à l'autre
         llm_params = {k: v for k, v in asdict(llm_cfg).items() if k != "base_url"}
-        journal = EpisodeJournal(args.journal, {"game": cfg.as_dict(), "llm": llm_params})
+        params = {"game": cfg.as_dict(), "llm": llm_params}
+        if args.arm != "A1":
+            # A1 garde les paramètres des journaux A1v3, qui restent reprenables
+            params["arm"] = args.arm
+        journal = EpisodeJournal(args.journal, params)
         done = {s: r for s, r in journal.completed().items() if s in seeds}
         if done:
             print(f"reprise : {len(done)} épisode(s) déjà dans {args.journal}, "
@@ -156,7 +177,7 @@ def main() -> None:
 
         trace_path = os.path.join(args.trace, f"seed_{seed}.jsonl") if args.trace else None
         captured, steps, confinement, stats = run_llm_episode(
-            cfg, llm_cfg, seed, on_step=on_step, trace_path=trace_path)
+            cfg, llm_cfg, seed, on_step=on_step, trace_path=trace_path, arm=args.arm)
         episode_wall_s = time.monotonic() - t0
         if journal:
             journal.append({"seed": seed, "captured": captured, "steps": steps,
@@ -164,7 +185,7 @@ def main() -> None:
                             "stats": asdict(stats)})
         print(f"seed {seed}: capturé={captured} pas={steps} "
               f"temps={episode_wall_s:.1f}s latence_moy={stats.mean_latency_ms:.0f}ms "
-              f"replis={stats.fallback_count}", flush=True)
+              f"replis={stats.fallback_count} msg_moy={stats.mean_message_tokens:.0f}", flush=True)
         return seed, captured, steps, confinement, stats, episode_wall_s
 
     rows = [(s, r["captured"], r["steps"], r["confinement"], EpisodeLLMStats(**r["stats"]),
@@ -185,21 +206,23 @@ def main() -> None:
         return
 
     lines = [
-        f"Seeds {args.first_seed}..{args.first_seed + args.episodes - 1} "
+        f"Bras {args.arm}. Seeds {args.first_seed}..{args.first_seed + args.episodes - 1} "
         f"({args.episodes} épisodes), T = {cfg.max_steps}.",
         "",
-        "| Seed | Capture | Pas | Confinement à T | Temps mural (s) | Latence moy. (ms) | Replis |",
-        "|---|---|---|---|---|---|---|",
+        "| Seed | Capture | Pas | Confinement à T | Temps mural (s) | Latence moy. (ms) | Replis "
+        "| Positions/message |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for seed, captured, steps, confinement, stats, wall_s in rows:
         lines.append(
             f"| {seed} | {'oui' if captured else 'non'} | {steps} | {confinement:.3f} "
-            f"| {wall_s:.1f} | {stats.mean_latency_ms:.0f} | {stats.fallback_count} |")
+            f"| {wall_s:.1f} | {stats.mean_latency_ms:.0f} | {stats.fallback_count} "
+            f"| {stats.mean_message_tokens:.0f} |")
     lines += ["", "Paramètres du jeu :", "", "```json", json.dumps(cfg.as_dict(), indent=2), "```"]
     table = "\n".join(lines)
     print(table)
     if args.out:
-        with open(args.out, "w") as f:
+        with open(args.out, "w", encoding="utf-8") as f:
             f.write(table + "\n")
 
 

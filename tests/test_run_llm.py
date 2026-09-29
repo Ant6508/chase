@@ -7,17 +7,22 @@ from __future__ import annotations
 import json
 import sys
 
+import pytest
+
 import scripts.run_llm as run_llm
 from chase.config import ChaseConfig
 from chase.env import ChaseEnv
 from chase.llm.client import LLMCallResult
 from chase.llm.config import LLMConfig
 from chase.llm.logging import EpisodeLLMStats
+from chase.llm.message import render
+from chase.llm.places import Places
+from chase.llm.prompts import system_prompt
 from chase.moves import Move
 
 
 def _fake_episode(calls: list, traces: list | None = None):
-    def fake(cfg, llm_cfg, seed, on_step=None, trace_path=None):
+    def fake(cfg, llm_cfg, seed, on_step=None, trace_path=None, arm="A1"):
         calls.append((seed, llm_cfg.base_url))
         if traces is not None:
             traces.append(trace_path)
@@ -111,7 +116,7 @@ def test_timeout_option_overrides_the_client_timeout(tmp_path, monkeypatch):
     une réponse de 1 600 tokens dépasse les 180 s par défaut."""
     timeouts = []
 
-    def fake(cfg, llm_cfg, seed, on_step=None, trace_path=None):
+    def fake(cfg, llm_cfg, seed, on_step=None, trace_path=None, arm="A1"):
         timeouts.append(llm_cfg.timeout_s)
         return False, 7, 0.5, EpisodeLLMStats(10, 5, 0, 100.0, 1, 1.0)
 
@@ -121,3 +126,69 @@ def test_timeout_option_overrides_the_client_timeout(tmp_path, monkeypatch):
     assert timeouts == [400.0]
     first = json.loads((tmp_path / "j.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert first["params"]["llm"]["timeout_s"] == 400.0
+
+
+def test_arm_option_reaches_the_episode_and_the_journal(tmp_path, monkeypatch):
+    arms = []
+
+    def fake(cfg, llm_cfg, seed, on_step=None, trace_path=None, arm="A1"):
+        arms.append(arm)
+        return False, 7, 0.5, EpisodeLLMStats(10, 5, 0, 100.0, 1, 1.0)
+
+    monkeypatch.setattr(run_llm, "run_llm_episode", fake)
+    _run(monkeypatch, "--episodes", "1", "--arm", "A2", "--journal", str(tmp_path / "j.jsonl"))
+    assert arms == ["A2"]
+    first = json.loads((tmp_path / "j.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert first["params"]["arm"] == "A2"
+
+
+def test_a1_journal_keeps_the_a1v3_params(tmp_path, monkeypatch):
+    """Un journal A1 garde les paramètres d'A1v3 : il reste reprenable."""
+    monkeypatch.setattr(run_llm, "run_llm_episode", _fake_episode([]))
+    _run(monkeypatch, "--episodes", "1", "--journal", str(tmp_path / "j.jsonl"))
+    first = json.loads((tmp_path / "j.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert set(first["params"]) == {"game", "llm"}
+
+
+def test_resuming_the_journal_of_another_arm_is_refused(tmp_path, monkeypatch):
+    journal = str(tmp_path / "j.jsonl")
+    monkeypatch.setattr(run_llm, "run_llm_episode", _fake_episode([]))
+    _run(monkeypatch, "--episodes", "1", "--arm", "A2", "--journal", journal)
+    with pytest.raises(ValueError, match="paramètres"):
+        _run(monkeypatch, "--episodes", "2", "--arm", "A1bis", "--journal", journal)
+
+
+def test_trace_dir_keeps_the_system_prompt_of_the_arm(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_llm, "run_llm_episode", _fake_episode([]))
+    _run(monkeypatch, "--episodes", "1", "--pilot", "--arm", "A2", "--trace", str(tmp_path / "trace"))
+    saved = (tmp_path / "trace" / "system_prompt.txt").read_text(encoding="utf-8")
+    assert saved == system_prompt("A2")
+
+
+_SAID = {"moi": "K1", "cible": None, "candidates": {"C1": 100}, "intention": [], "je_couvre": None}
+
+
+class _TalkingClient:
+    def decide(self, system_prompt, user_prompt, with_message=False):
+        return LLMCallResult(move=Move.STAY, reasoning="r", prompt_tokens=1, completion_tokens=2,
+                             latency_ms=1.0, retries=0, fallback=False, thinking="t",
+                             raw_arguments="{}", message=dict(_SAID))
+
+
+def test_a2_trace_keeps_prompts_and_messages_for_a4(tmp_path):
+    cfg = ChaseConfig(max_steps=2)
+    trace = tmp_path / "seed_3.jsonl"
+    run_llm.run_llm_episode(cfg, LLMConfig(), 3, trace_path=str(trace), client=_TalkingClient(),
+                            arm="A2")
+    records = [json.loads(line) for line in trace.read_text(encoding="utf-8").splitlines()]
+    sent = render(_SAID)
+    assert [r["message_out"] for r in records] == [sent] * 4
+    assert [r["message_in"] for r in records] == [None, None, sent, sent]
+    assert records[2]["user_prompt"].startswith(records[2]["perception"])
+    assert records[2]["user_prompt"].endswith(sent)
+    assert records[0]["raw_arguments"] == "{}"
+    assert records[0]["message_tokens"] == len(sent)  # tokenizer de test : 1 token par caractère
+    env = ChaseEnv(cfg)
+    env.reset(seed=3)
+    names = Places.from_graph(env.graph).names
+    assert records[0]["unknown_names"] == [n for n in ("K1", "C1") if n not in names]

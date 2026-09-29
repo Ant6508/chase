@@ -1,6 +1,19 @@
-Seeds 0..29 (30 �pisodes), T = 60.
+reprise : 18 épisode(s) déjà dans D:\Projets_Info\chase_mas\.worktrees\jalon2-a1\results\jalon2_a1v3_local\journal.jsonl, 12 à jouer
+seed 20: capturé=True pas=56 temps=8736.1s latence_moy=77995ms replis=0
+seed 17: capturé=False pas=60 temps=11046.4s latence_moy=92048ms replis=0
+seed 21: capturé=False pas=60 temps=13760.2s latence_moy=112131ms replis=0
+seed 19: capturé=False pas=60 temps=14542.9s latence_moy=110571ms replis=1
+seed 25: capturé=True pas=24 temps=5467.6s latence_moy=113906ms replis=0
+seed 23: capturé=False pas=60 temps=12643.9s latence_moy=105364ms replis=0
+seed 22: capturé=False pas=60 temps=15333.7s latence_moy=121286ms replis=0
+seed 26: capturé=True pas=27 temps=5621.5s latence_moy=104101ms replis=0
+seed 24: capturé=False pas=60 temps=14933.7s latence_moy=124447ms replis=0
+seed 28: capturé=True pas=48 temps=9884.8s latence_moy=102966ms replis=0
+seed 27: capturé=False pas=60 temps=13250.5s latence_moy=110421ms replis=0
+seed 29: capturé=False pas=60 temps=11565.5s latence_moy=96379ms replis=0
+Seeds 0..29 (30 épisodes), T = 60.
 
-| Seed | Capture | Pas | Confinement � T | Temps mural (s) | Latence moy. (ms) | Replis |
+| Seed | Capture | Pas | Confinement à T | Temps mural (s) | Latence moy. (ms) | Replis |
 |---|---|---|---|---|---|---|
 | 0 | oui | 22 | 0.000 | 3870.0 | 87947 | 0 |
 | 1 | oui | 19 | 0.000 | 2463.4 | 64818 | 0 |
@@ -33,7 +46,7 @@ Seeds 0..29 (30 �pisodes), T = 60.
 | 28 | oui | 48 | 0.000 | 9884.8 | 102966 | 0 |
 | 29 | non | 60 | 0.010 | 11565.5 | 96379 | 0 |
 
-Param�tres du jeu :
+Paramètres du jeu :
 
 ```json
 {

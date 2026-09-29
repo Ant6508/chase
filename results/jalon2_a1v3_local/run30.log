@@ -1,0 +1,79 @@
+reprise : 4 épisode(s) déjà dans D:\Projets_Info\chase_mas\.worktrees\jalon2-a1\results\jalon2_a1v3_local\journal.jsonl, 26 à jouer
+seed 5: capturé=True pas=25 temps=6574.6s latence_moy=131482ms replis=0
+seed 4: capturé=True pas=33 temps=8357.5s latence_moy=126621ms replis=0
+seed 7: capturé=True pas=46 temps=11536.8s latence_moy=125395ms replis=0
+seed 8: capturé=True pas=30 temps=8908.5s latence_moy=148474ms replis=0
+seed 9: capturé=False pas=60 temps=15514.8s latence_moy=129289ms replis=0
+seed 10: capturé=False pas=60 temps=13242.9s latence_moy=110357ms replis=0
+seed 6: capturé=False pas=60 temps=24788.4s latence_moy=176534ms replis=1
+seed 12: capturé=True pas=26 temps=5186.6s latence_moy=99742ms replis=0
+seed 11: capturé=True pas=57 temps=13623.0s latence_moy=119500ms replis=0
+seed 15: capturé=True pas=10 temps=4194.3s latence_moy=149649ms replis=0
+seed 13: capturé=True pas=40 temps=9489.6s latence_moy=118620ms replis=0
+seed 14: capturé=False pas=60 temps=18018.2s latence_moy=150152ms replis=0
+seed 16: capturé=False pas=60 temps=16165.1s latence_moy=124697ms replis=0
+seed 18: capturé=False pas=60 temps=12548.8s latence_moy=104573ms replis=0
+seed 17: capturé=False pas=60 temps=15752.9s latence_moy=124996ms replis=21
+seed 19: capturé=False pas=60 temps=6200.3s latence_moy=51059ms replis=56
+seed 20: capturé=False pas=60 temps=3735.9s latence_moy=30953ms replis=66
+seed 21: capturé=False pas=60 temps=2190.0s latence_moy=15716ms replis=104
+seed 22: capturé=False pas=60 temps=2.9s latence_moy=0ms replis=120
+seed 23: capturé=False pas=60 temps=2.8s latence_moy=0ms replis=120
+seed 24: capturé=False pas=60 temps=2.9s latence_moy=0ms replis=120
+seed 25: capturé=False pas=60 temps=2.8s latence_moy=0ms replis=120
+seed 26: capturé=False pas=60 temps=2.8s latence_moy=0ms replis=120
+seed 27: capturé=False pas=60 temps=2.7s latence_moy=0ms replis=120
+seed 28: capturé=False pas=60 temps=2.6s latence_moy=0ms replis=120
+seed 29: capturé=False pas=60 temps=2.4s latence_moy=0ms replis=120
+Seeds 0..29 (30 épisodes), T = 60.
+
+| Seed | Capture | Pas | Confinement à T | Temps mural (s) | Latence moy. (ms) | Replis |
+|---|---|---|---|---|---|---|
+| 0 | oui | 22 | 0.000 | 3870.0 | 87947 | 0 |
+| 1 | oui | 19 | 0.000 | 2463.4 | 64818 | 0 |
+| 2 | oui | 28 | 0.000 | 4199.4 | 74985 | 0 |
+| 3 | oui | 58 | 0.000 | 5973.2 | 51491 | 0 |
+| 4 | oui | 33 | 0.000 | 8357.5 | 126621 | 0 |
+| 5 | oui | 25 | 0.000 | 6574.6 | 131482 | 0 |
+| 6 | non | 60 | 0.061 | 24788.4 | 176534 | 1 |
+| 7 | oui | 46 | 0.000 | 11536.8 | 125395 | 0 |
+| 8 | oui | 30 | 0.000 | 8908.5 | 148474 | 0 |
+| 9 | non | 60 | 0.020 | 15514.8 | 129289 | 0 |
+| 10 | non | 60 | 0.010 | 13242.9 | 110357 | 0 |
+| 11 | oui | 57 | 0.000 | 13623.0 | 119500 | 0 |
+| 12 | oui | 26 | 0.000 | 5186.6 | 99742 | 0 |
+| 13 | oui | 40 | 0.000 | 9489.6 | 118620 | 0 |
+| 14 | non | 60 | 0.714 | 18018.2 | 150152 | 0 |
+| 15 | oui | 10 | 0.000 | 4194.3 | 149649 | 0 |
+| 16 | non | 60 | 0.010 | 16165.1 | 124697 | 0 |
+| 17 | non | 60 | 0.153 | 15752.9 | 124996 | 21 |
+| 18 | non | 60 | 0.857 | 12548.8 | 104573 | 0 |
+| 19 | non | 60 | 0.755 | 6200.3 | 51059 | 56 |
+| 20 | non | 60 | 0.776 | 3735.9 | 30953 | 66 |
+| 21 | non | 60 | 0.898 | 2190.0 | 15716 | 104 |
+| 22 | non | 60 | 0.929 | 2.9 | 0 | 120 |
+| 23 | non | 60 | 0.867 | 2.8 | 0 | 120 |
+| 24 | non | 60 | 0.092 | 2.9 | 0 | 120 |
+| 25 | non | 60 | 0.878 | 2.8 | 0 | 120 |
+| 26 | non | 60 | 0.847 | 2.8 | 0 | 120 |
+| 27 | non | 60 | 0.878 | 2.7 | 0 | 120 |
+| 28 | non | 60 | 0.918 | 2.6 | 0 | 120 |
+| 29 | non | 60 | 0.908 | 2.4 | 0 | 120 |
+
+Paramètres du jeu :
+
+```json
+{
+  "size": 15,
+  "n_loops": 1,
+  "min_loop_len": 6,
+  "n_pursuers": 2,
+  "view_size": 5,
+  "min_spawn_dist": 6,
+  "max_steps": 60,
+  "target_memory": 6,
+  "target_cycle_bias": 0.5,
+  "comm_delay": 1,
+  "track_threshold": 8
+}
+```

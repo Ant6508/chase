@@ -194,7 +194,10 @@ prend déjà une `PursuerPolicy` en paramètre.
     suit la case la plus proche, lequel reproduit a1v2. Conséquence à
     assumer dans le rapport : la perception porte désormais l'essentiel de
     l'information de décision de R1 ; le bras A1 mesure si le LLM l'exploite,
-    et les bras suivants ce que la communication y ajoute.
+    et les bras suivants ce que la communication y ajoute. Campagne complète
+    (`results/jalon2_a1v3.md`) : 53 % de captures (16/30, 36 %
+    d'allers-retours), significativement au-dessus de a1v2 en comparaison
+    appariée, indistinct de R1 (63 %), sous R2 (83 %).
   - La croyance utilisée est la **croyance individuelle** du poursuivant
     (mêmes fonctions `chase/belief.py::propagate`/`observe` que R1, appliquées
     indépendamment par poursuivant — aucune fusion, aucune position de

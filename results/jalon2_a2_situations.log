@@ -1,0 +1,15 @@
+10 situations : vue_par_coéquipier 4, issue_vidée 3, tenaille 3
+vue_par_coéquipier seed 30 pas 12 P0 : P2 SOUTH, A1bis SOUTH, A2 STAY
+vue_par_coéquipier seed 31 pas 21 P1 : P2 NORTH, A1bis NORTH, A2 NORTH
+vue_par_coéquipier seed 32 pas 32 P1 : P2 NORTH, A1bis NORTH, A2 NORTH
+vue_par_coéquipier seed 33 pas 33 P1 : P2 NORTH, A1bis NORTH, A2 NORTH
+issue_vidée seed 30 pas 2 P0 : P2 WEST, A1bis SOUTH, A2 SOUTH
+issue_vidée seed 31 pas 3 P1 : P2 EAST, A1bis WEST, A2 WEST
+issue_vidée seed 32 pas 3 P1 : P2 SOUTH, A1bis NORTH, A2 NORTH
+tenaille seed 32 pas 31 P0 : P2 WEST, A1bis WEST, A2 WEST
+tenaille seed 35 pas 52 P0 : P2 SOUTH, A1bis SOUTH, A2 SOUTH
+tenaille seed 36 pas 19 P1 : P2 NORTH, A1bis NORTH, A2 NORTH
+vue_par_coéquipier : A2 = P2 3/4, A1bis = P2 4/4, messages valides 3/4, couverture moyenne 69%
+issue_vidée : A2 = P2 0/3, A1bis = P2 0/3, messages valides 3/3, couverture moyenne 93%
+tenaille : A2 = P2 3/3, A1bis = P2 3/3, messages valides 3/3, couverture moyenne 100%
+FIN

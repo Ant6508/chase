@@ -109,13 +109,22 @@ précédent. C'est le délai d'un pas de la SPEC, celui de R2 avec `comm_delay=1
 
 **Contrôles figés, repris d'A1v3.**
 - Même modèle : `google/gemma-4-12b` Q6_K.
-- Mêmes réglages : `temperature=0`, `max_tokens=1600`, 2 relances.
+- Mêmes réglages : `temperature=0`, 2 relances.
 - Même profil réduit : `max_steps=60 size=15 n_loops=1 min_loop_len=6
   min_spawn_dist=6`.
 - Mêmes seeds : 0 à 29.
-- Le message se prend sur le même budget de 1600 tokens que la pensée. A1v3 en
-  consommait 446 en moyenne : la marge est large, mais les réponses coupées seront
-  surveillées.
+
+**Budget de génération (révisé le 2026-09-30).** `max_tokens` vaut 4 000 pour A1bis
+comme pour A2. A1 garde les 1 600 d'A1v3. Le message se prend sur ce même budget que
+la pensée. Les mesures (`results/jalon2_a2_budget.md`) :
+- **A2** consomme de 2 600 à 3 300 tokens par appel, dont 2 300 à 3 000 de pensée : le
+  modèle rédige et relit la liste des lieux avant de l'écrire. Avec 1 600, les trois
+  appels mesurés ont tous été coupés (`finish_reason=length`).
+- **A1bis** consomme environ 450 tokens par appel, comme A1v3. Le plafond commun ne le
+  gêne donc pas, et le contrôle « même budget de raisonnement » reste respecté.
+
+Ce surcoût de pensée d'A2 est un résultat en soi, à rapporter : c'est ce que coûte au
+texte la sérialisation d'un ensemble.
 
 ## Référentiel de lieux
 
@@ -528,34 +537,44 @@ On relève :
 Il n'y a pas de seuil figé. Les résultats sont consignés et décident du lancement du
 pilote.
 
-### 3. Pilote A2, seeds 0 à 3, en local
+### 3. Pilote A2, seeds 0 à 3, sur RunPod
 
-On surveille : les replis, les messages invalides, les noms inconnus, les positions
-par message, le taux de `finish_reason="length"` et la latence.
+On surveille : les replis et leurs causes (`attempt_errors`), les messages invalides,
+les noms inconnus, les positions par message, le taux de `finish_reason="length"`, les
+tokens de pensée et la latence.
 
-**Point à vérifier d'abord : le contexte par créneau.** Un appel A2 demande environ
-1 000 tokens de prompt plus jusqu'à 1 600 de complétion. Avec `--parallel 4` et un
-contexte de 10 240, llama.cpp peut n'accorder que 2 560 tokens par créneau. Il faut
-charger un contexte plus grand, 12 288 ou plus, si la VRAM de la carte de 12 Go le
-permet. Sinon, passer à `--parallel 3`.
+**Contexte par créneau (révisé le 2026-09-30).** Les prompts réels, mesurés avec le
+tokenizer, sont environ deux fois plus longs que prévu :
+- **A1bis** : environ 740 tokens de partie fixe (système et outil), jusqu'à environ
+  1 400 avec la perception ;
+- **A2** : environ 1 150 tokens de partie fixe (système et outil au schéma allégé), et
+  de 1 600 à 2 500 avec la perception et le message.
+
+Avec 4 000 tokens de complétion, il faut donc au moins 6 500 tokens par créneau. Le pod
+charge **8 créneaux de 8 192 tokens** (contexte total 65 536, `scripts/pod/setup.sh`).
+Le même réglage sert à A1bis.
 
 ## Campagnes
 
-LM Studio local, comme A1v3 : `--concurrency 4 --timeout 400`, même profil, seeds 0
-à 29, même commande que `results/jalon2_a1v3.md` plus `--arm`. Il faut compter environ
-30 h par campagne.
+**Sur RunPod, pour A2 comme pour A1bis (décision du 2026-09-30).**
+- **Pourquoi pas en local.** Sur la carte de 12 Go, un appel A2 prend de 6,5 à
+  8,5 minutes : environ 8 jours pour A2, et environ 10 avec A1bis. Le modèle y déborde
+  aussi en mémoire partagée dès qu'un autre programme occupe la VRAM (voir
+  `results/jalon2_a2_budget.md`).
+- **Réglages du pod.** 8 créneaux de 8 192 tokens, `--concurrency 8`, `--timeout 900`,
+  `--max-tokens 4000`, même profil, seeds 0 à 29, `--trace`.
+- **Durées estimées**, sur la base d'environ 120 tokens/s au total mesurés sur RunPod en
+  septembre : environ 20 h pour A2, et environ 3 h pour A1bis.
+- **Même pile pour les deux bras.** Le témoin et A2 tournent ainsi sur la même pile
+  (CUDA). L'écart matériel avec A1v3, qui tournait sous Vulkan sur carte AMD, est à
+  signaler dans le rapport.
 
-1. **A2 d'abord.**
-   - Sorties : `results/jalon2_a2_local/{journal.jsonl,trace/,table.md,run*.log}`.
-2. **A1bis ensuite.**
-   - Sorties : `results/jalon2_a1bis_local/`, même structure.
+Ordre :
+1. **A2 d'abord.** Sorties : `results/jalon2_a2/{journal.jsonl,trace/,table.md,run.log}`.
+2. **A1bis ensuite.** Sorties : `results/jalon2_a1bis/`, même structure.
 
-**Pour une pause.** On gèle le vrai interpréteur, le processus `python.exe` dont la
-ligne de commande contient `run_llm` et dont le parent est le lanceur du venv, et non
-le lanceur lui-même. On vérifie que les traces n'avancent plus avant de décharger le
-modèle. Un épisode où `fallback_count > 1` est suspect.
-
-**Héberger ailleurs** (RunPod) ne change que `--base-url`.
+Commandes : voir l'en-tête de `scripts/pod/deploy.sh`. `campaign.sh start` reprend un
+run interrompu aux seeds manquantes. Un épisode où `fallback_count > 1` est suspect.
 
 ## Rapport `results/jalon2_a2.md`
 
@@ -585,6 +604,11 @@ modèle. Un épisode où `fallback_count > 1` est suspect.
   - Les deux poursuivants se séparent-ils en exploration ?
 - **Coûts.** Tokens de prompt, de pensée et de message par décision. Latence et temps
   mural, avec les mêmes réserves qu'en A1v3.
+  - **Le surcoût de pensée d'A2 face à A1bis** est un résultat à part entière : le prix
+    de la sérialisation.
+  - **Les relances de chaque bras** doivent être rapportées. Les tokens des tentatives
+    relancées ne sont pas comptés, et A2 a une cause de relance de plus : le message
+    invalide.
 - **Revendication.** Le schéma est un protocole conçu par nous (§ Le message).
 
 ## Points ouverts (non traités ici)
@@ -598,6 +622,12 @@ modèle. Un épisode où `fallback_count > 1` est suspect.
   nettement sous P2.
 - **A4.**
   - Choisir le coup cible de l'entraînement : celui de R2, de P2 ou d'A2.
-  - Situer les tokens du message dans `raw_arguments`, pour en extraire les états
-    cachés.
+  - Reconstituer le tour de l'émetteur pour en extraire les états cachés sur les
+    tokens du message. Mise en garde (relecture finale, 2026-09-30) :
+    `raw_arguments` est la réécriture JSON faite par LM Studio. Ce n'est pas ce que le
+    modèle a généré, puisque gemma-4 écrit ses appels d'outil dans une syntaxe native
+    (`<|tool_call>`). A4 devra donc reconstruire le tour avec le gabarit de chat, à
+    partir de la pensée et des arguments décodés. Il a besoin pour cela de l'outil
+    exact, écrit par `run_llm --trace` dans `DIR/tools.json`, et des `prompt_tokens`
+    de chaque décision pour valider la reconstruction.
   - Relancer un bras texte sur la pile `transformers` bf16.

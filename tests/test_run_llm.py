@@ -128,6 +128,33 @@ def test_timeout_option_overrides_the_client_timeout(tmp_path, monkeypatch):
     assert first["params"]["llm"]["timeout_s"] == 400.0
 
 
+def test_max_tokens_option_reaches_the_episode_and_the_journal(tmp_path, monkeypatch):
+    """A2 pense ~2 900 tokens par appel : son budget (4 000) dépasse celui d'A1."""
+    budgets = []
+
+    def fake(cfg, llm_cfg, seed, on_step=None, trace_path=None, arm="A1"):
+        budgets.append(llm_cfg.max_tokens)
+        return False, 7, 0.5, EpisodeLLMStats(10, 5, 0, 100.0, 1, 1.0), 0.25
+
+    monkeypatch.setattr(run_llm, "run_llm_episode", fake)
+    _run(monkeypatch, "--episodes", "1", "--max-tokens", "4000", "--journal", str(tmp_path / "j.jsonl"))
+
+    assert budgets == [4000]
+    first = json.loads((tmp_path / "j.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert first["params"]["llm"]["max_tokens"] == 4000
+
+
+def test_journal_keeps_the_default_max_tokens_without_the_option(tmp_path, monkeypatch):
+    def fake(cfg, llm_cfg, seed, on_step=None, trace_path=None, arm="A1"):
+        return False, 7, 0.5, EpisodeLLMStats(10, 5, 0, 100.0, 1, 1.0), 0.25
+
+    monkeypatch.setattr(run_llm, "run_llm_episode", fake)
+    _run(monkeypatch, "--episodes", "1", "--journal", str(tmp_path / "j.jsonl"))
+
+    first = json.loads((tmp_path / "j.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert first["params"]["llm"]["max_tokens"] == 1600
+
+
 def test_arm_option_reaches_the_episode_and_the_journal(tmp_path, monkeypatch):
     arms = []
 

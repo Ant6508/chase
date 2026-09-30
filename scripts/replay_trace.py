@@ -79,6 +79,8 @@ def main() -> None:
     parser.add_argument("--concurrency", type=int, default=4)
     parser.add_argument("--base-url")
     parser.add_argument("--timeout", type=float)
+    parser.add_argument("--max-tokens", type=int,
+                        help="budget de complétion par appel (défaut : LLMConfig.max_tokens)")
     parser.add_argument("--arm", choices=ARMS, default="A1",
                         help="bras dont on rejoue le prompt système (défaut : A1)")
     parser.add_argument("--out", required=True, help="JSONL : une ligne par décision rejouée")
@@ -93,6 +95,8 @@ def main() -> None:
         cfg = replace(cfg, base_url=args.base_url)
     if args.timeout:
         cfg = replace(cfg, timeout_s=args.timeout)
+    if args.max_tokens:
+        cfg = replace(cfg, max_tokens=args.max_tokens)
     client = LMStudioClient(cfg)
 
     sample = draw(args.trace_dir, groups, args.n, args.seed)

@@ -12,8 +12,12 @@ MODEL_DIR=/workspace/models/lmstudio-community/gemma-4-12B-it-GGUF
 MODEL_FILES="gemma-4-12B-it-Q6_K.gguf mmproj-gemma-4-12B-it-BF16.gguf"
 HF=https://huggingface.co/lmstudio-community/gemma-4-12B-it-GGUF/resolve/main
 IDENTIFIER=gemma-4-12b-a1   # = LLMConfig.model
-CONTEXT=81920               # total partagé entre les créneaux : 2560 tokens chacun
-PARALLEL=32                 # validé au provisioning : ~90 % d'une carte 24 Go (4090, 3090)
+# Contexte total partagé entre les créneaux. Par défaut 8 créneaux de 8192 tokens :
+# un appel A2 demande ~2500 tokens de prompt plus 4000 de complétion. La campagne A1
+# de septembre tournait avec 81920 tokens et 32 créneaux (2560 chacun, ~90 % d'une
+# carte 24 Go : 4090, 3090) : CONTEXT=81920 PARALLEL=32 bash setup.sh le retrouve.
+CONTEXT=${CONTEXT:-65536}
+PARALLEL=${PARALLEL:-8}
 VENV=/workspace/venv
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 export PATH="/root/.lmstudio/bin:$PATH"
@@ -59,4 +63,6 @@ fi
 
 [ -x "$VENV/bin/python" ] || python3 -m venv "$VENV"
 "$VENV/bin/pip" install -q -r "$REPO/requirements.txt"
+# tokenizer de gemma-4 préchargé : le premier épisode ne télécharge rien
+"$VENV/bin/python" -c "import sys; sys.path.insert(0, '$REPO'); from chase.llm.message import load_tokenizer; load_tokenizer()"
 echo "pod prêt : $IDENTIFIER sur 127.0.0.1:1234, Python dans $VENV"

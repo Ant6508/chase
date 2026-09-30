@@ -1,7 +1,7 @@
 """Situations témoins du bras A2 contre le modèle local (§ Validation, étape 2).
 
     python -m scripts.situations_a2 --set max_steps=60 size=15 n_loops=1 min_loop_len=6 \\
-        min_spawn_dist=6 --base-url http://127.0.0.1:1234/v1 --timeout 400 \\
+        min_spawn_dist=6 --base-url http://127.0.0.1:1234/v1 --timeout 400 --max-tokens 4000 \\
         --out results/jalon2_a2_situations.jsonl
 
 Les situations viennent de parties de P2 (décisions de R2, message A2 exact) sur les
@@ -145,6 +145,8 @@ def main() -> None:
     parser.add_argument("--seeds", default="30-129", help="seeds des parties de P2, ex. 30-129")
     parser.add_argument("--base-url")
     parser.add_argument("--timeout", type=float)
+    parser.add_argument("--max-tokens", type=int,
+                        help="budget de complétion par appel (défaut : LLMConfig.max_tokens)")
     parser.add_argument("--concurrency", type=int, default=4)
     parser.add_argument("--out", required=True, help="JSONL : une ligne par situation")
     args = parser.parse_args()
@@ -166,6 +168,8 @@ def main() -> None:
         llm_cfg = replace(llm_cfg, base_url=args.base_url)
     if args.timeout:
         llm_cfg = replace(llm_cfg, timeout_s=args.timeout)
+    if args.max_tokens:
+        llm_cfg = replace(llm_cfg, max_tokens=args.max_tokens)
     client = LMStudioClient(llm_cfg)
 
     rows = []

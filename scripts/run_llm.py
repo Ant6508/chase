@@ -27,6 +27,12 @@ positions vraies du poursuivant et de la cible), au fil de l'eau.
 coéquipier). Avec --trace, le prompt système du bras est écrit dans
 DIR/system_prompt.txt, et chaque décision garde le prompt utilisateur complet,
 les messages reçu et émis et les arguments bruts : le jeu de données d'A4.
+
+--max-tokens N remplace LLMConfig.max_tokens (1600, le budget de la campagne A1v3,
+qui reste reproductible sans l'option). Un appel A1bis ou A2 consomme ~2 900 tokens
+dont ~2 300 à 3 000 de pensée : ces bras tournent avec le même plafond de 4000,
+par ex. --arm A2 --max-tokens 4000. Le budget entre dans les paramètres `llm` du
+journal : reprendre un journal avec un autre budget est refusé.
 """
 
 from __future__ import annotations
@@ -145,6 +151,9 @@ def main() -> None:
     parser.add_argument("--timeout", type=float,
                         help="délai par appel en secondes (défaut : LLMConfig.timeout_s) ; "
                              "à allonger sur un GPU lent")
+    parser.add_argument("--max-tokens", type=int,
+                        help="budget de complétion par appel (défaut : LLMConfig.max_tokens, 1600) ; "
+                             "A1bis et A2 : 4000")
     parser.add_argument("--arm", choices=ARMS, default="A1",
                         help="A1 : perception A1v3 ; A1bis : lieux nommés ; A2 : lieux et message")
     args = parser.parse_args()
@@ -155,6 +164,8 @@ def main() -> None:
         llm_cfg = replace(llm_cfg, base_url=args.base_url)
     if args.timeout:
         llm_cfg = replace(llm_cfg, timeout_s=args.timeout)
+    if args.max_tokens:
+        llm_cfg = replace(llm_cfg, max_tokens=args.max_tokens)
     seeds = list(range(args.first_seed, args.first_seed + args.episodes))
     if args.trace:
         os.makedirs(args.trace, exist_ok=True)

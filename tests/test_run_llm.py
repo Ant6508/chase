@@ -26,7 +26,7 @@ def _fake_episode(calls: list, traces: list | None = None):
         calls.append((seed, llm_cfg.base_url))
         if traces is not None:
             traces.append(trace_path)
-        return False, 7, 0.5, EpisodeLLMStats(10, 5, 0, 100.0, 1, 1.0)
+        return False, 7, 0.5, EpisodeLLMStats(10, 5, 0, 100.0, 1, 1.0), 0.25
     return fake
 
 
@@ -118,7 +118,7 @@ def test_timeout_option_overrides_the_client_timeout(tmp_path, monkeypatch):
 
     def fake(cfg, llm_cfg, seed, on_step=None, trace_path=None, arm="A1"):
         timeouts.append(llm_cfg.timeout_s)
-        return False, 7, 0.5, EpisodeLLMStats(10, 5, 0, 100.0, 1, 1.0)
+        return False, 7, 0.5, EpisodeLLMStats(10, 5, 0, 100.0, 1, 1.0), 0.25
 
     monkeypatch.setattr(run_llm, "run_llm_episode", fake)
     _run(monkeypatch, "--episodes", "1", "--timeout", "400", "--journal", str(tmp_path / "j.jsonl"))
@@ -133,7 +133,7 @@ def test_arm_option_reaches_the_episode_and_the_journal(tmp_path, monkeypatch):
 
     def fake(cfg, llm_cfg, seed, on_step=None, trace_path=None, arm="A1"):
         arms.append(arm)
-        return False, 7, 0.5, EpisodeLLMStats(10, 5, 0, 100.0, 1, 1.0)
+        return False, 7, 0.5, EpisodeLLMStats(10, 5, 0, 100.0, 1, 1.0), 0.25
 
     monkeypatch.setattr(run_llm, "run_llm_episode", fake)
     _run(monkeypatch, "--episodes", "1", "--arm", "A2", "--journal", str(tmp_path / "j.jsonl"))
@@ -192,3 +192,82 @@ def test_a2_trace_keeps_prompts_and_messages_for_a4(tmp_path):
     env.reset(seed=3)
     names = Places.from_graph(env.graph).names
     assert records[0]["unknown_names"] == [n for n in ("K1", "C1") if n not in names]
+
+
+# --- durcissement avant les campagnes --------------------------------------------------
+
+def test_trace_records_carry_latency_prompt_tokens_finish_reason_and_attempt_errors(tmp_path):
+    class _Cut:
+        def decide(self, system_prompt, user_prompt):
+            return LLMCallResult(move=Move.STAY, reasoning="r", prompt_tokens=77,
+                                 completion_tokens=2, latency_ms=12.5, retries=1, fallback=False,
+                                 finish_reason="stop", attempt_errors=["coupé"])
+
+    trace = tmp_path / "seed_3.jsonl"
+    run_llm.run_llm_episode(ChaseConfig(max_steps=1), LLMConfig(), 3, trace_path=str(trace),
+                            client=_Cut())
+    first = json.loads(trace.read_text(encoding="utf-8").splitlines()[0])
+    assert (first["prompt_tokens"], first["latency_ms"]) == (77, 12.5)
+    assert (first["finish_reason"], first["attempt_errors"]) == ("stop", ["coupé"])
+
+
+def test_episode_returns_the_mean_confinement_like_run_episode():
+    from chase.policies import GreedyPursuers
+    from chase.runner import run_episode
+
+    class Stay(GreedyPursuers):
+        def act(self, percepts):
+            return [Move.STAY] * len(percepts)
+
+    cfg = ChaseConfig(max_steps=6)
+    *_, mean_conf = run_llm.run_llm_episode(cfg, LLMConfig(), 3, client=_StayClient())
+    ref = run_episode(cfg, Stay(cfg, fused=False), 3)
+    assert mean_conf == pytest.approx(ref.mean_confinement)
+
+
+def test_trace_dir_keeps_tools_json_for_a4(tmp_path, monkeypatch):
+    from chase.llm.client import move_tool
+    monkeypatch.setattr(run_llm, "run_llm_episode", _fake_episode([]))
+    _run(monkeypatch, "--episodes", "1", "--pilot", "--arm", "A2", "--trace", str(tmp_path / "t"))
+    tools = json.loads((tmp_path / "t" / "tools.json").read_text(encoding="utf-8"))
+    assert tools == [move_tool(True)]
+
+
+def test_journal_params_fingerprint_the_prompts_outside_a1(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_llm, "run_llm_episode", _fake_episode([]))
+    _run(monkeypatch, "--episodes", "1", "--arm", "A2", "--journal", str(tmp_path / "j.jsonl"))
+    first = json.loads((tmp_path / "j.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert len(first["params"]["prompts"]) == 16
+    assert first["mean_confinement"] == 0.25
+    monkeypatch.setattr(run_llm, "system_prompt", lambda arm: "autre prompt")
+    with pytest.raises(ValueError, match="paramètres"):
+        _run(monkeypatch, "--episodes", "2", "--arm", "A2", "--journal", str(tmp_path / "j.jsonl"))
+
+
+def test_a_failing_episode_does_not_stop_the_campaign(tmp_path, monkeypatch, capsys):
+    def fake(cfg, llm_cfg, seed, on_step=None, trace_path=None, arm="A1"):
+        if seed == 1:
+            raise RuntimeError("episode casse")
+        return False, 7, 0.5, EpisodeLLMStats(10, 5, 0, 100.0, 1, 1.0), 0.25
+
+    monkeypatch.setattr(run_llm, "run_llm_episode", fake)
+    journal, out = tmp_path / "j.jsonl", tmp_path / "t.md"
+    _run(monkeypatch, "--episodes", "3", "--journal", str(journal), "--out", str(out))
+    seen = [json.loads(l)["seed"] for l in journal.read_text(encoding="utf-8").splitlines()]
+    assert sorted(seen) == [0, 2]
+    text = out.read_text(encoding="utf-8")
+    assert "Confinement moyen" in text and "seeds en échec : 1" in text
+    assert "| 1 | non" not in text
+    assert "episode casse" in capsys.readouterr().err
+
+
+def test_resuming_an_old_journal_without_mean_confinement_gives_nan(tmp_path, monkeypatch):
+    journal = tmp_path / "j.jsonl"
+    monkeypatch.setattr(run_llm, "run_llm_episode", _fake_episode([]))
+    _run(monkeypatch, "--episodes", "1", "--journal", str(journal))
+    rec = json.loads(journal.read_text(encoding="utf-8"))
+    del rec["mean_confinement"]
+    journal.write_text(json.dumps(rec) + "\n", encoding="utf-8")
+    out = tmp_path / "t.md"
+    _run(monkeypatch, "--episodes", "1", "--journal", str(journal), "--out", str(out))
+    assert "nan" in out.read_text(encoding="utf-8")

@@ -132,7 +132,11 @@ def ask(client, s: dict, names: frozenset[str]) -> dict:
             "unknown_names": (unknown_names(a2.message, _Names(names))
                               if a2.message is not None else []),
             "coverage": coverage,
-            "a1bis_thinking": a1bis.thinking, "a2_thinking": a2.thinking}
+            "a1bis_thinking": a1bis.thinking, "a2_thinking": a2.thinking,
+            # diagnostic de chaque appel (le repli y est lisible dans `reasoning`)
+            **{f"{arm}_{k}": getattr(r, k) for arm, r in (("a1bis", a1bis), ("a2", a2))
+               for k in ("reasoning", "prompt_tokens", "completion_tokens", "finish_reason",
+                         "attempt_errors", "latency_ms")}}
 
 
 def main() -> None:

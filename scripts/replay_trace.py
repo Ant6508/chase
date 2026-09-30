@@ -22,7 +22,7 @@ from dataclasses import replace
 from chase.llm.client import LMStudioClient
 from chase.llm.config import LLMConfig
 from chase.llm.logging import REASONING_LOG_CHARS
-from chase.llm.prompts import SYSTEM_PROMPT
+from chase.llm.prompts import ARMS, system_prompt
 from scripts.analyze_trace import parse_exits
 
 
@@ -53,8 +53,13 @@ def draw(trace_dir: str, groups: dict[str, list[int]], n: int, seed: int = 0) ->
     return [(name, drawn[name][k]) for k in range(n) for name in groups]
 
 
-def replay(client, name: str, rec: dict) -> dict:
-    result = client.decide(SYSTEM_PROMPT, rec["perception"])
+def replay(client, name: str, rec: dict, arm: str = "A1") -> dict:
+    # user_prompt (A1bis, A2) contient aussi le message reçu ; absent des traces d'A1v3
+    user = rec.get("user_prompt") or rec["perception"]
+    if arm == "A2":
+        result = client.decide(system_prompt(arm), user, with_message=True)
+    else:
+        result = client.decide(system_prompt(arm), user)
     return {"group": name, "seed": rec["seed"], "step": rec["step"], "pursuer": rec["pursuer"],
             "recorded": rec["move"], "replayed": result.move.name,
             "same_move": result.move.name == rec["move"],
@@ -74,6 +79,8 @@ def main() -> None:
     parser.add_argument("--concurrency", type=int, default=4)
     parser.add_argument("--base-url")
     parser.add_argument("--timeout", type=float)
+    parser.add_argument("--arm", choices=ARMS, default="A1",
+                        help="bras dont on rejoue le prompt système (défaut : A1)")
     parser.add_argument("--out", required=True, help="JSONL : une ligne par décision rejouée")
     args = parser.parse_args()
 
@@ -92,7 +99,7 @@ def main() -> None:
     rows = []
     with open(args.out, "w", encoding="utf-8") as out, \
             ThreadPoolExecutor(max_workers=args.concurrency) as pool:
-        for row in pool.map(lambda s: replay(client, *s), sample):
+        for row in pool.map(lambda s: replay(client, *s, arm=args.arm), sample):
             out.write(json.dumps(row, ensure_ascii=False) + "\n")
             out.flush()
             rows.append(row)

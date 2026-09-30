@@ -32,17 +32,22 @@ les messages reçu et émis et les arguments bruts : le jeu de données d'A4.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import sys
 import time
+import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
 from dataclasses import asdict, replace
 from typing import Callable
 
+import numpy as np
+
 from chase.config import ChaseConfig
 from chase.env import ChaseEnv, episode_rngs
-from chase.llm.client import LLMClient
+from chase.llm.client import LLMClient, move_tool
 from chase.llm.config import LLMConfig
 from chase.llm.journal import EpisodeJournal
 from chase.llm.logging import EpisodeLLMStats, StepLog
@@ -62,7 +67,9 @@ def _trace_record(seed: int, step: int, target: tuple[int, int], log: StepLog) -
     return {"seed": seed, "step": step, "pursuer": log.pursuer,
             "pos": [int(v) for v in log.pos], "target": [int(v) for v in target],
             "move": log.move.name, "fallback": log.fallback, "retries": log.retries,
-            "completion_tokens": log.completion_tokens, "perception": log.perception,
+            "prompt_tokens": log.prompt_tokens, "completion_tokens": log.completion_tokens,
+            "latency_ms": log.latency_ms, "finish_reason": log.finish_reason,
+            "attempt_errors": log.attempt_errors, "perception": log.perception,
             "reasoning": log.reasoning, "thinking": log.thinking,
             # A1bis et A2 : de quoi reconstruire chaque échange (jeu de données d'A4)
             "user_prompt": log.user_prompt, "message_in": log.message_in,
@@ -85,6 +92,7 @@ def run_llm_episode(cfg: ChaseConfig, llm_cfg: LLMConfig, seed: int,
     t0 = time.monotonic()
     vis = env.visibility()
     policy.update(_percepts(env, vis))
+    history = [env.confinement]  # comme chase/runner.py::run_episode
     if on_step:
         on_step(env, policy)
     with open(trace_path, "w", encoding="utf-8") if trace_path else nullcontext() as trace:
@@ -100,12 +108,15 @@ def run_llm_episode(cfg: ChaseConfig, llm_cfg: LLMConfig, seed: int,
             moves.append(target.act(env.target_pos, vis[env.target_id], pursuers))
             vis = env.step_moves(moves)
             policy.update(_percepts(env, vis))
+            history.append(env.confinement)
             if on_step:
                 on_step(env, policy)
+    # après capture, le confinement reste nul jusqu'à T
+    history += [0.0] * (cfg.max_steps + 1 - len(history))
     wall_time_s = time.monotonic() - t0
 
     stats = EpisodeLLMStats.from_steps(policy.step_logs, wall_time_s)
-    return env.captured, env.step_count, env.confinement, stats
+    return env.captured, env.step_count, env.confinement, stats, float(np.mean(history))
 
 
 def _parse_overrides(pairs: list[str]) -> dict:
@@ -149,6 +160,9 @@ def main() -> None:
         os.makedirs(args.trace, exist_ok=True)
         with open(os.path.join(args.trace, "system_prompt.txt"), "w", encoding="utf-8") as f:
             f.write(system_prompt(args.arm))
+        # la partie de l'outil que le prompt de l'émetteur ajoute (A4 la reconstituera)
+        with open(os.path.join(args.trace, "tools.json"), "w", encoding="utf-8") as f:
+            json.dump([move_tool(args.arm == "A2")], f, indent=2, ensure_ascii=False)
 
     journal = None
     done: dict[int, dict] = {}
@@ -160,13 +174,17 @@ def main() -> None:
         if args.arm != "A1":
             # A1 garde les paramètres des journaux A1v3, qui restent reprenables
             params["arm"] = args.arm
+            # modifier les prompts entre une pause et sa reprise refuse la reprise
+            fingerprint = system_prompt(args.arm) + json.dumps(
+                move_tool(args.arm == "A2"), sort_keys=True, ensure_ascii=False)
+            params["prompts"] = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:16]
         journal = EpisodeJournal(args.journal, params)
         done = {s: r for s, r in journal.completed().items() if s in seeds}
         if done:
             print(f"reprise : {len(done)} épisode(s) déjà dans {args.journal}, "
                   f"{len(seeds) - len(done)} à jouer", flush=True)
 
-    def _run_one(seed: int):
+    def _play_one(seed: int):
         t0 = time.monotonic()
 
         on_step = None
@@ -177,32 +195,51 @@ def main() -> None:
                       flush=True)
 
         trace_path = os.path.join(args.trace, f"seed_{seed}.jsonl") if args.trace else None
-        captured, steps, confinement, stats = run_llm_episode(
+        captured, steps, confinement, stats, mean_confinement = run_llm_episode(
             cfg, llm_cfg, seed, on_step=on_step, trace_path=trace_path, arm=args.arm)
         episode_wall_s = time.monotonic() - t0
         if journal:
             journal.append({"seed": seed, "captured": captured, "steps": steps,
-                            "confinement": confinement, "wall_time_s": episode_wall_s,
+                            "confinement": confinement, "mean_confinement": mean_confinement,
+                            "wall_time_s": episode_wall_s,
                             "stats": asdict(stats)})
         print(f"seed {seed}: capturé={captured} pas={steps} "
               f"temps={episode_wall_s:.1f}s latence_moy={stats.mean_latency_ms:.0f}ms "
               f"replis={stats.fallback_count} msg_moy={stats.mean_message_tokens:.0f}", flush=True)
-        return seed, captured, steps, confinement, stats, episode_wall_s
+        return seed, captured, steps, confinement, mean_confinement, stats, episode_wall_s
+
+    def _run_one(seed: int):
+        """Une exception dans un épisode n'arrête pas la campagne : la seed n'est pas
+        journalisée (elle sera rejouée à la reprise) et sort sur stderr."""
+        try:
+            return _play_one(seed)
+        except Exception:
+            print(f"seed {seed}: ÉCHEC", file=sys.stderr, flush=True)
+            traceback.print_exc()
+            failed.append(seed)
+            return None
 
     # chargement unique, avant les threads : truststore modifie ssl pour tout le processus
     load_tokenizer()
 
-    rows = [(s, r["captured"], r["steps"], r["confinement"], EpisodeLLMStats(**r["stats"]),
+    # journaux anciens : pas de confinement moyen
+    rows = [(s, r["captured"], r["steps"], r["confinement"],
+             r.get("mean_confinement", float("nan")), EpisodeLLMStats(**r["stats"]),
              r["wall_time_s"]) for s, r in done.items()]
+    failed: list[int] = []
     todo = [seed for seed in seeds if seed not in done]
     if args.concurrency <= 1:
         for seed in todo:
-            rows.append(_run_one(seed))
+            row = _run_one(seed)
+            if row:
+                rows.append(row)
     else:
         with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
             futures = [pool.submit(_run_one, seed) for seed in todo]
             for future in as_completed(futures):
-                rows.append(future.result())
+                row = future.result()
+                if row:
+                    rows.append(row)
     # ni l'ordre de complétion ni celui de la reprise ne sont l'ordre des seeds
     rows.sort(key=lambda r: r[0])
 
@@ -213,15 +250,17 @@ def main() -> None:
         f"Bras {args.arm}. Seeds {args.first_seed}..{args.first_seed + args.episodes - 1} "
         f"({args.episodes} épisodes), T = {cfg.max_steps}.",
         "",
-        "| Seed | Capture | Pas | Confinement à T | Temps mural (s) | Latence moy. (ms) | Replis "
+        "| Seed | Capture | Pas | Confinement à T | Confinement moyen | Temps mural (s) | Latence moy. (ms) | Replis "
         "| Positions/message |",
-        "|---|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
-    for seed, captured, steps, confinement, stats, wall_s in rows:
+    for seed, captured, steps, confinement, mean_conf, stats, wall_s in rows:
         lines.append(
             f"| {seed} | {'oui' if captured else 'non'} | {steps} | {confinement:.3f} "
-            f"| {wall_s:.1f} | {stats.mean_latency_ms:.0f} | {stats.fallback_count} "
+            f"| {mean_conf:.3f} | {wall_s:.1f} | {stats.mean_latency_ms:.0f} | {stats.fallback_count} "
             f"| {stats.mean_message_tokens:.0f} |")
+    if failed:
+        lines += ["", f"seeds en échec : {', '.join(map(str, sorted(failed)))}"]
     lines += ["", "Paramètres du jeu :", "", "```json", json.dumps(cfg.as_dict(), indent=2), "```"]
     table = "\n".join(lines)
     print(table)

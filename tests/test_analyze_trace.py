@@ -99,3 +99,14 @@ def test_visible_target_is_recognized_after_the_position_line_of_a1bis_and_a2():
                               "(à vol d'oiseau : 2 cases au sud).\nDirections :"}]
     c = summarize(records, _graph())
     assert c["cible_vue"] == 1 and c["cible_cachée"] == 0
+
+
+def test_sample_shows_the_user_prompt_when_present_else_the_perception():
+    from scripts.analyze_trace import format_sample
+
+    base = {"seed": 1, "step": 2, "pursuer": 0, "pos": [1, 2], "target": [3, 4], "move": "EAST",
+            "perception": "PERCEPTION", "thinking": "t", "reasoning": "r"}
+    assert "PERCEPTION" in format_sample(base)
+    assert "MESSAGE" not in format_sample({**base, "user_prompt": ""})
+    shown = format_sample({**base, "user_prompt": "PERCEPTION\n\nMESSAGE"})
+    assert "MESSAGE" in shown and "[pensée] t" in shown

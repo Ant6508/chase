@@ -48,3 +48,24 @@ def test_ask_compares_both_prompts_to_p2_and_scores_the_emitted_message():
     assert row["coverage"] == 0.5
     assert row["unknown_names"] == ["Z9"]
     assert row["a2_message_valid"] is True
+
+
+def test_ask_keeps_the_diagnostics_of_both_calls():
+    from chase.llm.client import LLMCallResult
+    from chase.moves import Move
+
+    class Diag:
+        def decide(self, system_prompt, user_prompt, with_message=False):
+            return LLMCallResult(move=Move.STAY, reasoning="repli après échec : x", prompt_tokens=0,
+                                 completion_tokens=9, latency_ms=3.0, retries=2, fallback=True,
+                                 finish_reason="length", attempt_errors=["e1"])
+
+    s = {"seed": 1, "step": 0, "pursuer": 0, "family": "f", "p2_move": "STAY",
+         "a1bis_prompt": "p", "a2_prompt": "q",
+         "own_message": {"candidates": {"C1": 1}}}
+    row = ask(Diag(), s, frozenset())
+    for arm in ("a1bis", "a2"):
+        assert row[f"{arm}_reasoning"] == "repli après échec : x"
+        assert row[f"{arm}_prompt_tokens"] == 0 and row[f"{arm}_completion_tokens"] == 9
+        assert row[f"{arm}_finish_reason"] == "length" and row[f"{arm}_attempt_errors"] == ["e1"]
+        assert row[f"{arm}_latency_ms"] == 3.0

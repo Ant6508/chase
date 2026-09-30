@@ -114,6 +114,15 @@ def _row(seed, c: Counter) -> str:
             f"| {c['replis']} | {c['tokens_complétion'] / n:.0f} |")
 
 
+def format_sample(r: dict) -> str:
+    """Une décision en entier. `user_prompt` (A1bis, A2) montre aussi le message reçu ;
+    sinon la perception seule (traces d'A1v3)."""
+    shown = r.get("user_prompt") or r["perception"]
+    return (f"\n### seed {r['seed']}, pas {r['step']}, poursuivant {r['pursuer']} en "
+            f"{tuple(r['pos'])}, cible en {tuple(r['target'])} : {r['move']}\n{shown}\n"
+            f"[pensée] {r['thinking']}\n[justification] {r['reasoning']}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("trace_dir")
@@ -144,10 +153,7 @@ def main() -> None:
     print(_row("total", total))
 
     for r in shown:
-        print(f"\n### seed {r['seed']}, pas {r['step']}, poursuivant {r['pursuer']} en {tuple(r['pos'])}, "
-              f"cible en {tuple(r['target'])} : {r['move']}\n{r['perception']}\n"
-              f"[pensée] {r['thinking']}\n[justification] {r['reasoning']}")
-
+        print(format_sample(r))
 
 if __name__ == "__main__":
     main()

@@ -144,6 +144,14 @@ class LMStudioClient:
                 message = None
                 if with_message:
                     message = args.get("message")
+                    if isinstance(message, str):
+                        # le modèle écrit parfois le message comme une chaîne JSON : simple
+                        # variante de format, décodée sans toucher au contenu (une chaîne qui
+                        # n'est pas un objet JSON reste rejetée par validate)
+                        try:
+                            message = json.loads(message)
+                        except json.JSONDecodeError:
+                            pass
                     problem = validate(message)
                     if problem is not None:
                         errors.append(f"message invalide : {problem}")

@@ -114,8 +114,11 @@ précédent. C'est le délai d'un pas de la SPEC, celui de R2 avec `comm_delay=1
   min_spawn_dist=6`.
 - Mêmes seeds : 0 à 29.
 
-**Budget de génération (révisé le 2026-09-30).** `max_tokens` vaut 4 000 pour A1bis
-comme pour A2. A1 garde les 1 600 d'A1v3. Le message se prend sur ce même budget que
+**Budget de génération (révisé le 2026-09-30).** `max_tokens` vaut **5 600** pour
+A1bis comme pour A2. A1 garde les 1 600 d'A1v3. Un premier plafond de 4 000 coupait
+encore 5 tentatives A2 sur 16 aux situations témoins
+(`results/jalon2_a2_situations.md`). 5 600 est le maximum que laissent les créneaux de
+8 192 tokens à un prompt A2 d'au plus environ 2 500 tokens. Le message se prend sur ce même budget que
 la pensée. Les mesures (`results/jalon2_a2_budget.md`) :
 - **A2** consomme de 2 600 à 3 300 tokens par appel, dont 2 300 à 3 000 de pensée : le
   modèle rédige et relit la liste des lieux avant de l'écrire. Avec 1 600, les trois
@@ -266,6 +269,10 @@ Le prompt système donne un exemple de message.
 
   La règle est celle d'A1 : 2 relances, puis repli sur `STAY` sans message. Le
   coéquipier reçoit alors « Aucun message reçu. ».
+- **Exception (révisée le 2026-09-30).** Un `message` écrit sous forme de chaîne JSON
+  qui se décode en objet est accepté après décodage. Le modèle le fait parfois (2
+  tentatives sur 16 aux situations témoins), et c'est une variante de format, pas de
+  contenu. Une chaîne qui n'est pas un objet JSON reste rejetée.
 - **Les noms ne sont pas filtrés.** Un nom qui n'existe pas sur la carte (`C99`,
   `C4b.9`) est transmis tel quel, comme un bruit du canal. Il est compté dans le
   journal (`unknown_names`).
@@ -550,7 +557,7 @@ tokenizer, sont environ deux fois plus longs que prévu :
 - **A2** : environ 1 150 tokens de partie fixe (système et outil au schéma allégé), et
   de 1 600 à 2 500 avec la perception et le message.
 
-Avec 4 000 tokens de complétion, il faut donc au moins 6 500 tokens par créneau. Le pod
+Avec 5 600 tokens de complétion au plus, il faut donc environ 8 100 tokens par créneau. Le pod
 charge **8 créneaux de 8 192 tokens** (contexte total 65 536, `scripts/pod/setup.sh`).
 Le même réglage sert à A1bis.
 
@@ -562,7 +569,7 @@ Le même réglage sert à A1bis.
   aussi en mémoire partagée dès qu'un autre programme occupe la VRAM (voir
   `results/jalon2_a2_budget.md`).
 - **Réglages du pod.** 8 créneaux de 8 192 tokens, `--concurrency 8`, `--timeout 900`,
-  `--max-tokens 4000`, même profil, seeds 0 à 29, `--trace`.
+  `--max-tokens 5600`, même profil, seeds 0 à 29, `--trace`.
 - **Durées estimées**, sur la base d'environ 120 tokens/s au total mesurés sur RunPod en
   septembre : environ 20 h pour A2, et environ 3 h pour A1bis.
 - **Même pile pour les deux bras.** Le témoin et A2 tournent ainsi sur la même pile

@@ -31,7 +31,7 @@ les messages reçu et émis et les arguments bruts : le jeu de données d'A4.
 --max-tokens N remplace LLMConfig.max_tokens (1600, le budget de la campagne A1v3,
 qui reste reproductible sans l'option). Un appel A1bis ou A2 consomme ~2 900 tokens
 dont ~2 300 à 3 000 de pensée : ces bras tournent avec le même plafond de 4000,
-par ex. --arm A2 --max-tokens 4000. Le budget entre dans les paramètres `llm` du
+par ex. --arm A2 --max-tokens 5600. Le budget entre dans les paramètres `llm` du
 journal : reprendre un journal avec un autre budget est refusé.
 """
 

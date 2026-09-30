@@ -252,3 +252,21 @@ def test_thinking_and_reasoning_are_made_encodable_but_the_message_is_not_touche
     result.thinking.encode("utf-8")
     assert result.thinking.endswith("\u00e9e")
     assert result.message == _MSG
+
+
+def test_message_written_as_a_json_string_is_decoded_not_retried():
+    """Le modèle écrit parfois `message` comme une chaîne JSON plutôt que comme un objet
+    (vu aux situations témoins du 2026-09-30) : c'est une variante de format, décodée
+    sans relance ; le contenu n'est pas modifié."""
+    args = {"direction": "EAST", "reasoning": "r", "message": json.dumps(_MSG)}
+    fake = _FakeOpenAI([_args_response(args)])
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+    assert (result.message, result.retries, result.fallback) == (_MSG, 0, False)
+
+
+def test_a_string_that_is_not_a_json_object_is_still_rejected():
+    for bad in ("n'importe quoi", json.dumps(["C1"])):
+        args = {"direction": "EAST", "reasoning": "r", "message": bad}
+        fake = _FakeOpenAI([_args_response(args)] * 3)
+        result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+        assert result.fallback is True and result.message is None

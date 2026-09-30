@@ -10,7 +10,7 @@
 #       --episodes 30 --concurrency 8 --set max_steps=60 size=15
 #   ssh -p <port> root@<ip> bash /workspace/chase_mas/scripts/pod/campaign.sh status a1
 #   ssh -p <port> root@<ip> bash /workspace/chase_mas/scripts/pod/campaign.sh start a2 \
-#       --arm A2 --max-tokens 4000 --timeout 900 --episodes 30 --concurrency 8 \
+#       --arm A2 --max-tokens 5600 --timeout 900 --episodes 30 --concurrency 8 \
 #       --set max_steps=60 size=15 n_loops=1 min_loop_len=6 min_spawn_dist=6 \
 #       --trace /workspace/results/a2/trace
 #   scp -P <port> root@<ip>:/workspace/results/a1/{table.md,journal.jsonl} results/

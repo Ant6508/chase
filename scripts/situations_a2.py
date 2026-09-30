@@ -1,7 +1,7 @@
 """Situations témoins du bras A2 contre le modèle local (§ Validation, étape 2).
 
     python -m scripts.situations_a2 --set max_steps=60 size=15 n_loops=1 min_loop_len=6 \\
-        min_spawn_dist=6 --base-url http://127.0.0.1:1234/v1 --timeout 400 --max-tokens 4000 \\
+        min_spawn_dist=6 --base-url http://127.0.0.1:1234/v1 --timeout 400 --max-tokens 5600 \\
         --out results/jalon2_a2_situations.jsonl
 
 Les situations viennent de parties de P2 (décisions de R2, message A2 exact) sur les

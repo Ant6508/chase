@@ -91,7 +91,7 @@ restent privées : seul le message lui parvient. Le message a cinq champs, tous 
 obligatoires :
 - `moi` : ta case, pour vous répartir la recherche et préparer une prise en tenaille ;
 - `cible` : la case de la cible si tu la vois, sinon null ;
-- `candidates` : les lieux où la cible peut être d'après ta perception, avec leur \
+- `candidates` : tous les lieux où la cible peut être d'après ta perception, avec leur \
 probabilité en pourcentage entier ;
 - `intention` : les prochains lieux que tu comptes traverser, dans l'ordre ;
 - `je_couvre` : le lieu que tu bloques ou gardes, sinon null.

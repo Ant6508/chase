@@ -109,6 +109,8 @@ class LLMPursuers(PursuerPolicy):
                 message_in=received,
                 message_out=sent,
                 raw_arguments=result.raw_arguments,
+                finish_reason=result.finish_reason,
+                attempt_errors=list(result.attempt_errors),
                 thinking_tokens=msg.count_tokens(result.thinking),
                 unknown_names=msg.unknown_names(message, self.places) if message is not None else [],
             ))

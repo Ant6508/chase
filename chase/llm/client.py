@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from openai import OpenAI
@@ -41,7 +41,7 @@ _MOVE_TOOL = {
 }
 
 
-def _move_tool(with_message: bool) -> dict:
+def move_tool(with_message: bool) -> dict:
     """L'outil `move`, avec le paramètre `message` obligatoire en A2 seulement."""
     if not with_message:
         return _MOVE_TOOL
@@ -66,11 +66,20 @@ class LLMCallResult:
     thinking: str = ""  # chaîne de pensée émise avant l'appel d'outil (`reasoning_content`)
     message: dict | None = None  # message validé (A2) ; None hors canal ou en repli
     raw_arguments: str = ""      # arguments bruts de l'appel d'outil (A4 y situera le message)
+    finish_reason: str = ""      # raison d'arrêt de la réponse (« length » : réponse coupée)
+    # raison de chaque tentative échouée, dans l'ordre ; en repli, elles y sont toutes
+    attempt_errors: list[str] = field(default_factory=list)
 
 
 class LLMClient(Protocol):
     def decide(self, system_prompt: str, user_prompt: str,
                with_message: bool = False) -> LLMCallResult: ...
+
+
+def _clean(text: str) -> str:
+    """Texte privé (pensée, justification) rendu encodable en UTF-8 : un demi-caractère
+    de substitution isolé ferait échouer `count_tokens` et l'écriture de la trace."""
+    return text.encode("utf-8", "replace").decode("utf-8")
 
 
 def _parse_tool_call(response) -> tuple[str, str, dict, str] | None:
@@ -95,7 +104,10 @@ class LMStudioClient:
 
     def decide(self, system_prompt: str, user_prompt: str,
                with_message: bool = False) -> LLMCallResult:
-        last_error: Exception | None = None
+        errors: list[str] = []
+        # pensée, arguments bruts et finish_reason de la dernière réponse reçue, gardés
+        # dans le repli pour le diagnostic
+        last_thinking, last_raw, last_finish = "", "", ""
         for attempt in range(self.cfg.max_retries + 1):
             t0 = time.monotonic()
             try:
@@ -108,45 +120,61 @@ class LMStudioClient:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
-                    tools=[_move_tool(with_message)],
+                    tools=[move_tool(with_message)],
                     tool_choice="required",
                 )
             except Exception as exc:
-                last_error = exc
+                errors.append(str(exc))
                 continue
             latency_ms = (time.monotonic() - t0) * 1000
-            parsed = _parse_tool_call(response)
-            if parsed is None:
-                last_error = ValueError("réponse sans appel d'outil valide")
-                continue
-            direction, reasoning, args, raw = parsed
-            message = None
-            if with_message:
-                message = args.get("message")
-                problem = validate(message)
-                if problem is not None:
-                    last_error = ValueError(f"message invalide : {problem}")
+            # Aucune exception ne sort de `decide` : une réponse illisible est une
+            # tentative échouée comme une autre.
+            try:
+                choice = response.choices[0]
+                finish = getattr(choice, "finish_reason", None) or ""
+                last_finish = finish
+                last_thinking = _clean(getattr(choice.message, "reasoning_content", None) or "")
+                parsed = _parse_tool_call(response)
+                if parsed is None:
+                    errors.append("réponse sans appel d'outil valide "
+                                  f"(finish_reason={finish or 'inconnu'})")
                     continue
-            usage = response.usage
-            thinking = getattr(response.choices[0].message, "reasoning_content", None) or ""
-            return LLMCallResult(
-                move=Move[direction],
-                reasoning=reasoning,
-                prompt_tokens=usage.prompt_tokens if usage else 0,
-                completion_tokens=usage.completion_tokens if usage else 0,
-                latency_ms=latency_ms,
-                retries=attempt,
-                fallback=False,
-                thinking=thinking,
-                message=message,
-                raw_arguments=raw,
-            )
+                direction, reasoning, args, raw = parsed
+                last_raw = raw
+                message = None
+                if with_message:
+                    message = args.get("message")
+                    problem = validate(message)
+                    if problem is not None:
+                        errors.append(f"message invalide : {problem}")
+                        continue
+                usage = response.usage
+                return LLMCallResult(
+                    move=Move[direction],
+                    reasoning=_clean(reasoning),
+                    prompt_tokens=usage.prompt_tokens if usage else 0,
+                    completion_tokens=usage.completion_tokens if usage else 0,
+                    latency_ms=latency_ms,
+                    retries=attempt,
+                    fallback=False,
+                    thinking=last_thinking,
+                    message=message,
+                    raw_arguments=raw,
+                    finish_reason=finish,
+                    attempt_errors=errors,
+                )
+            except Exception as exc:
+                errors.append(f"réponse illisible : {exc!r}")
         return LLMCallResult(
             move=Move.STAY,
-            reasoning=f"repli après échec : {last_error}",
+            reasoning=f"repli après échec : {errors[-1] if errors else ''}",
             prompt_tokens=0,
             completion_tokens=0,
             latency_ms=0.0,
             retries=self.cfg.max_retries,
             fallback=True,
+            thinking=last_thinking,
+            raw_arguments=last_raw,
+            finish_reason=last_finish,
+            attempt_errors=errors,
         )

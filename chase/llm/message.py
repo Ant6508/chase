@@ -16,20 +16,17 @@ TOKENIZER_REPO = "google/gemma-4-12B-it"  # tokenizer.json seul, sans les poids
 
 FIELDS = ("moi", "cible", "candidates", "intention", "je_couvre")
 
+# Sans description par champ : le paragraphe du canal du prompt système les dit déjà,
+# et le contexte par créneau est serré (~110 tokens par appel A2 économisés).
 MESSAGE_SCHEMA = {
     "type": "object",
     "description": "Message pour ton coéquipier, qu'il lira au pas suivant.",
     "properties": {
-        "moi": {"type": "string", "description": "Ta case, par exemple \"C2a.3\"."},
-        "cible": {"type": ["string", "null"],
-                  "description": "La case de la cible si tu la vois, sinon null."},
-        "candidates": {"type": "object", "additionalProperties": {"type": "number"},
-                       "description": "Les lieux où la cible peut être d'après ta perception, "
-                                      "avec leur probabilité en pourcentage entier."},
-        "intention": {"type": "array", "items": {"type": "string"},
-                      "description": "Les prochains lieux que tu comptes traverser, dans l'ordre."},
-        "je_couvre": {"type": ["string", "null"],
-                      "description": "Le lieu que tu bloques ou gardes, sinon null."},
+        "moi": {"type": "string"},
+        "cible": {"type": ["string", "null"]},
+        "candidates": {"type": "object", "additionalProperties": {"type": "number"}},
+        "intention": {"type": "array", "items": {"type": "string"}},
+        "je_couvre": {"type": ["string", "null"]},
     },
     "required": list(FIELDS),
 }
@@ -69,7 +66,9 @@ def validate(obj) -> str | None:
                 return f"{f} n'est pas un texte UTF-8 valide"
     cand = obj["candidates"]
     if not isinstance(cand, dict) or not all(
-            isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+            isinstance(v, (int, float)) and not isinstance(v, bool)
+            # isfinite sur les seuls float : un int géant le fait lever OverflowError
+            and (not isinstance(v, float) or math.isfinite(v))
             for v in cand.values()):
         return "candidates n'est pas un objet lieu -> nombre"
     if not all(_utf8(k) for k in cand):
@@ -78,6 +77,11 @@ def validate(obj) -> str | None:
         return "intention n'est pas une liste de chaînes"
     if not all(_utf8(s) for s in obj["intention"]):
         return "intention contient une chaîne qui n'est pas un texte UTF-8 valide"
+    # filet : champs en trop, clés imbriquées, etc.
+    try:
+        render(obj).encode("utf-8")
+    except (UnicodeEncodeError, ValueError, TypeError):
+        return "le message contient une chaîne non encodable en UTF-8"
     return None
 
 

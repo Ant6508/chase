@@ -178,3 +178,77 @@ def test_message_is_ignored_outside_the_channel():
     fake = _FakeOpenAI([_args_response(args)])
     result = LMStudioClient(CFG, client=fake).decide("s", "p")
     assert result.move == Move.EAST and result.message is None and result.fallback is False
+
+
+# --- durcissement avant les campagnes A2 / A1bis -------------------------------------
+
+from chase.llm.client import move_tool
+
+
+def _finish(response, reason):
+    response.choices[0].finish_reason = reason
+    return response
+
+
+def test_move_tool_is_public_and_keeps_the_plain_tool_outside_the_channel():
+    assert move_tool(False) is _MOVE_TOOL
+    assert move_tool(True)["function"]["parameters"]["properties"]["message"] == MESSAGE_SCHEMA
+
+
+def test_finish_reason_is_kept_on_success():
+    fake = _FakeOpenAI([_finish(_tool_call_response("EAST"), "tool_calls")])
+    result = LMStudioClient(CFG, client=fake).decide("s", "p")
+    assert result.finish_reason == "tool_calls" and result.attempt_errors == []
+
+
+def test_attempt_errors_are_kept_after_a_retry_and_name_the_finish_reason():
+    cut = _finish(_no_tool_call_response(), "length")
+    fake = _FakeOpenAI([cut, RuntimeError("timeout"), _tool_call_response("EAST")])
+    result = LMStudioClient(CFG, client=fake).decide("s", "p")
+    assert result.retries == 2
+    assert result.attempt_errors == [
+        "réponse sans appel d'outil valide (finish_reason=length)", "timeout"]
+
+
+def test_fallback_keeps_all_errors_and_the_last_answer_received():
+    bad = {"direction": "EAST", "reasoning": "r", "message": "non"}
+    resp = _finish(_args_response(bad), "stop")
+    resp.choices[0].message.reasoning_content = "je réfléchis"
+    fake = _FakeOpenAI([_no_tool_call_response(), resp, RuntimeError("boum")])
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+    assert result.fallback and result.move == Move.STAY and result.message is None
+    assert len(result.attempt_errors) == 3
+    assert result.thinking == "je réfléchis"
+    assert result.raw_arguments == json.dumps(bad)
+    assert result.finish_reason == "stop"
+
+
+def test_exception_in_validation_becomes_a_failed_attempt(monkeypatch):
+    import chase.llm.client as client_mod
+
+    calls = []
+
+    def boom(obj):
+        calls.append(obj)
+        if len(calls) == 1:
+            raise OverflowError("int too large")
+        return None
+
+    monkeypatch.setattr(client_mod, "validate", boom)
+    args = {"direction": "EAST", "reasoning": "r", "message": _MSG}
+    fake = _FakeOpenAI([_args_response(args), _args_response(args)])
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+    assert result.retries == 1 and not result.fallback
+    assert result.attempt_errors[0].startswith("réponse illisible : OverflowError(")
+
+
+def test_thinking_and_reasoning_are_made_encodable_but_the_message_is_not_touched():
+    args = {"direction": "EAST", "reasoning": "abc\ud83d", "message": _MSG}
+    resp = _args_response(args)
+    resp.choices[0].message.reasoning_content = "pens\ud83d\u00e9e"
+    fake = _FakeOpenAI([resp])
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+    result.reasoning.encode("utf-8")
+    result.thinking.encode("utf-8")
+    assert result.thinking.endswith("\u00e9e")
+    assert result.message == _MSG

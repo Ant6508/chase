@@ -63,3 +63,17 @@ def test_unknown_names_are_listed_in_message_order():
     places = SimpleNamespace(names=frozenset({"C2a.3", "K1", "C4a", "C7a"}))
     assert unknown_names(_msg(), places) == ["C9"]
     assert unknown_names(_msg(cible="Z1", je_couvre="Z2"), places) == ["Z1", "C9", "Z2"]
+
+
+def test_a_huge_integer_is_finite_and_accepted():
+    assert validate(_msg(candidates={"C1": 10 ** 400})) is None
+
+
+def test_a_surrogate_in_an_extra_key_is_rejected():
+    problem = validate(_msg(**{"not\ud83d": 1}))
+    assert problem == "le message contient une chaîne non encodable en UTF-8"
+
+
+def test_schema_properties_carry_no_description():
+    assert all("description" not in p for p in MESSAGE_SCHEMA["properties"].values())
+    assert MESSAGE_SCHEMA["description"]

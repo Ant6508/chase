@@ -280,3 +280,17 @@ def test_unknown_arm_is_refused():
 def test_message_block_shows_the_message_or_its_absence():
     assert message_block('{"moi":"K1"}') == f'{MESSAGE_HEADER}\n{{"moi":"K1"}}'
     assert message_block(None) == f"{MESSAGE_HEADER}\n{NO_MESSAGE}"
+
+
+def test_a1bis_a2_prompts_and_move_tool_are_frozen():
+    # Empreintes figées avant les campagnes A2 et A1bis : un échec signale une dérive
+    # du témoin (prompt ou outil), pas un test à mettre à jour.
+    import json
+    from chase.llm.client import move_tool
+
+    def sha(s):
+        return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+    assert sha(system_prompt("A1bis")) == "96aeaa4058e22fc78e9ba7a6b1bab487a1edbf7480285a7634f0e00bf2a174f5"
+    assert sha(system_prompt("A2")) == "a16fafe787f0d4c9ee3df348852496c674c06e14fd990228393d693f4aacbba5"
+    assert sha(json.dumps(move_tool(True), sort_keys=True, ensure_ascii=False)) == "692716f9fdf47ad8a4fa9088f227a4341df0a69aee22fe0b55e237777b38fd68"

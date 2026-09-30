@@ -38,6 +38,8 @@ class StepLog:
     raw_arguments: str = ""
     thinking_tokens: int = 0
     unknown_names: list[str] = field(default_factory=list)
+    finish_reason: str = ""
+    attempt_errors: list[str] = field(default_factory=list)
 
 
 @dataclass

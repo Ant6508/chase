@@ -338,3 +338,17 @@ def test_a2_requires_two_pursuers():
 def test_unknown_arm_is_refused():
     with pytest.raises(ValueError, match="bras inconnu"):
         LLMPursuers(CFG, LLM_CFG, client=FakeLLMClient([]), arm="A3")
+
+
+def test_step_log_copies_finish_reason_and_attempt_errors():
+    env = ChaseEnv(CFG)
+    env.reset(seed=3)
+    from dataclasses import replace
+    failed = replace(_fallback(), finish_reason="length", attempt_errors=["a", "b"])
+    policy = LLMPursuers(CFG, LLM_CFG, client=FakeLLMClient([failed, _ok(Move.WEST)]))
+    policy.reset(env.graph, np.random.default_rng(0))
+    percepts = _percepts(env, env.visibility())
+    policy.update(percepts)
+    policy.act(percepts)
+    assert (policy.step_logs[0].finish_reason, policy.step_logs[0].attempt_errors) == ("length", ["a", "b"])
+    assert (policy.step_logs[1].finish_reason, policy.step_logs[1].attempt_errors) == ("", [])

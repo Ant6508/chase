@@ -47,9 +47,21 @@ lms daemon up
 if [ ! -f "/root/.lmstudio/hub/models/$MODEL/model.yaml" ]; then
     lms get "$MODEL@q6_k" --gguf -y < /dev/null
 fi
-if ! lms ps 2>/dev/null | grep -q "$IDENTIFIER"; then
-    lms load "$MODEL" --gpu max --context-length "$CONTEXT" --parallel "$PARALLEL" \
-        --identifier "$IDENTIFIER" -y
+# moteur CUDA explicite : quand la détection du GPU échoue, LM Studio choisit sinon le
+# moteur CPU sans prévenir (vu le 2026-09-30 sur un pod Community défectueux)
+cuda=$(lms runtime ls 2>/dev/null | grep -o 'llama.cpp-linux-x86_64-nvidia-cuda[^ ]*' | head -1)
+[ -n "$cuda" ] && lms runtime select "$cuda"
+# toujours recharger : un modèle déjà chargé avec un autre contexte ou d'autres créneaux
+# ne serait pas remplacé (environ 10 s)
+lms unload --all || true
+lms load "$MODEL" --gpu max --context-length "$CONTEXT" --parallel "$PARALLEL" \
+    --identifier "$IDENTIFIER" -y
+# garde-fou : le modèle (~9 Go) doit être en mémoire sur le GPU, sinon il tourne sur le
+# processeur et la campagne serait des dizaines de fois plus lente
+used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1)
+if [ "${used:-0}" -lt 5000 ]; then
+    echo "le modèle n'est pas sur le GPU (${used:-?} MiB utilisés) : moteur CPU ou GPU inaccessible" >&2
+    exit 1
 fi
 if ! curl -sf http://127.0.0.1:1234/v1/models >/dev/null; then
     setsid nohup lms server start --port 1234 --bind 0.0.0.0 --cors \

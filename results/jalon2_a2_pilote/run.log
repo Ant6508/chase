@@ -1,0 +1,41 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+seed 1: capturé=True pas=21 temps=8289.2s latence_moy=145298ms replis=1 msg_moy=135
+seed 2: capturé=True pas=27 temps=8507.9s latence_moy=136627ms replis=0 msg_moy=107
+seed 0: capturé=True pas=24 temps=12106.7s latence_moy=172318ms replis=1 msg_moy=142
+seed 4: capturé=True pas=31 temps=13559.9s latence_moy=150378ms replis=1 msg_moy=113
+seed 5: capturé=False pas=60 temps=13977.1s latence_moy=101910ms replis=0 msg_moy=80
+seed 3: capturé=True pas=47 temps=19804.9s latence_moy=136924ms replis=3 msg_moy=144
+seed 6: capturé=False pas=60 temps=22634.8s latence_moy=134067ms replis=1 msg_moy=150
+seed 7: capturé=False pas=60 temps=31189.5s latence_moy=133787ms replis=12 msg_moy=179
+Bras A2. Seeds 0..7 (8 épisodes), T = 60.
+
+| Seed | Capture | Pas | Confinement à T | Confinement moyen | Temps mural (s) | Latence moy. (ms) | Replis | Positions/message |
+|---|---|---|---|---|---|---|---|---|
+| 0 | oui | 24 | 0.000 | 0.224 | 12106.7 | 172318 | 1 | 142 |
+| 1 | oui | 21 | 0.000 | 0.163 | 8289.2 | 145298 | 1 | 135 |
+| 2 | oui | 27 | 0.000 | 0.037 | 8507.9 | 136627 | 0 | 107 |
+| 3 | oui | 47 | 0.000 | 0.332 | 19804.9 | 136924 | 3 | 144 |
+| 4 | oui | 31 | 0.000 | 0.055 | 13559.9 | 150378 | 1 | 113 |
+| 5 | non | 60 | 0.010 | 0.201 | 13977.1 | 101910 | 0 | 80 |
+| 6 | non | 60 | 0.061 | 0.637 | 22634.8 | 134067 | 1 | 150 |
+| 7 | non | 60 | 0.745 | 0.729 | 31189.5 | 133787 | 12 | 179 |
+
+Paramètres du jeu :
+
+```json
+{
+  "size": 15,
+  "n_loops": 1,
+  "min_loop_len": 6,
+  "n_pursuers": 2,
+  "view_size": 5,
+  "min_spawn_dist": 6,
+  "max_steps": 60,
+  "target_memory": 6,
+  "target_cycle_bias": 0.5,
+  "comm_delay": 1,
+  "track_threshold": 8
+}
+```
+reprise : 8 épisode(s) déjà dans /workspace/results/a2/journal.jsonl, 22 à jouer
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.

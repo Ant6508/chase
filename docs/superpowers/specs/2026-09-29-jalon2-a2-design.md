@@ -623,6 +623,21 @@ run interrompu aux seeds manquantes. Un épisode où `fallback_count > 1` est su
 - **A3.** Budget imposé à la génération sur les mêmes champs. Il reste à choisir ce qui
   se tronque (nombre de lieux de `candidates`, longueur d'`intention`) et les valeurs de
   budget à balayer.
+- **Variante A2', en réserve (décision de l'utilisateur, 2026-10-01).**
+  - **Le constat.** Le prompt d'A2 dit que les deux poursuivants coopèrent, décrit le
+    message et ses champs, et énonce la règle d'intersection. Il ne demande pas de
+    tenir compte du message pour choisir sa direction : c'est voulu, puisqu'il ne donne
+    aucune consigne de stratégie. Aux situations témoins et au pilote, le modèle lit le
+    message (position et intention du coéquipier), mais ne fait pas l'intersection.
+  - **La variante.** Si la campagne montre qu'A2 ne fait pas mieux qu'A1bis, rejouer A2
+    avec une consigne explicite d'usage, du type « avant de choisir ta direction, écarte
+    les lieux que ton coéquipier a vus vides et tiens compte de sa position et de son
+    intention ».
+  - **Ce qu'elle tranche.** Soit le canal ne porte pas l'information utile, soit un
+    modèle de 12B ne l'exploite pas spontanément.
+  - **Son coût.** Une campagne A2 de plus, environ 24 h de pod. Le prompt d'A2 a une
+    empreinte figée : A2' aura son propre prompt, sa propre empreinte et son propre
+    journal.
 - **Relais.** Faire écrire à l'émetteur `candidates` comme l'intersection de sa
   perception et du message reçu. L'information s'accumulerait alors d'un pas à l'autre
   à travers les messages, au prix d'un calcul mental de plus. À envisager si A2 plafonne

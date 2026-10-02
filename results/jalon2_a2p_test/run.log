@@ -1,0 +1,133 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+situation 0 A2 : SOUTH
+situation 0 A2p : NORTH
+situation 1 A2 : WEST
+situation 1 A2p : NORTH
+situation 2 A2 : SOUTH
+situation 2 A2p : NORTH
+situation 3 A2 : SOUTH
+situation 3 A2p : NORTH
+situation 4 A2 : SOUTH
+situation 4 A2p : NORTH
+situation 5 A2 : EAST
+situation 5 A2p : NORTH
+situation 6 A2 : WEST
+situation 6 A2p : WEST
+situation 7 A2 : WEST
+situation 7 A2p : WEST
+situation 8 A2 : EAST
+situation 8 A2p : EAST
+situation 9 A2 : EAST
+situation 9 A2p : NORTH
+situation 10 A2 : SOUTH
+situation 10 A2p : NORTH
+situation 11 A2 : NORTH
+situation 11 A2p : NORTH
+situation 12 A2 : SOUTH
+situation 12 A2p : NORTH
+situation 13 A2 : EAST
+situation 13 A2p : NORTH
+situation 14 A2 : EAST
+situation 14 A2p : EAST
+situation 15 A2 : WEST
+situation 15 A2p : EAST
+situation 16 A2 : EAST
+situation 16 A2p : EAST
+situation 17 A2 : EAST
+situation 17 A2p : WEST
+situation 18 A2 : EAST
+situation 18 A2p : WEST
+situation 19 A2 : WEST
+situation 19 A2p : SOUTH
+situation 20 A2 : WEST
+situation 20 A2p : STAY (repli)
+situation 21 A2 : SOUTH
+situation 21 A2p : SOUTH
+situation 22 A2 : SOUTH
+situation 22 A2p : NORTH
+situation 23 A2 : NORTH
+situation 23 A2p : SOUTH
+situation 24 A2 : WEST
+situation 24 A2p : EAST
+situation 25 A2 : WEST
+situation 25 A2p : EAST
+situation 26 A2 : WEST
+situation 26 A2p : WEST
+situation 27 A2 : SOUTH
+situation 27 A2p : NORTH
+situation 28 A2 : EAST
+situation 28 A2p : EAST
+situation 29 A2 : EAST
+situation 29 A2p : EAST
+situation 30 A2 : SOUTH
+situation 30 A2p : NORTH
+situation 31 A2 : SOUTH
+situation 31 A2p : SOUTH
+situation 32 A2 : SOUTH
+situation 32 A2p : SOUTH
+situation 33 A2 : SOUTH
+situation 33 A2p : SOUTH
+situation 34 A2 : NORTH
+situation 34 A2p : SOUTH
+situation 35 A2 : SOUTH
+situation 35 A2p : SOUTH
+situation 36 A2 : EAST
+situation 36 A2p : EAST
+situation 37 A2 : EAST
+situation 37 A2p : EAST
+situation 38 A2 : EAST
+situation 38 A2p : EAST
+situation 39 A2 : WEST
+situation 39 A2p : WEST
+situation 40 A2 : WEST
+situation 40 A2p : EAST
+situation 41 A2 : SOUTH
+situation 41 A2p : NORTH
+situation 42 A2 : NORTH
+situation 42 A2p : NORTH
+situation 43 A2 : SOUTH
+situation 43 A2p : WEST
+situation 44 A2 : WEST
+situation 44 A2p : NORTH
+situation 45 A2 : EAST
+situation 45 A2p : EAST
+situation 46 A2 : EAST
+situation 46 A2p : EAST
+situation 47 A2 : WEST
+situation 47 A2p : WEST
+situation 48 A2 : WEST
+situation 48 A2p : WEST
+situation 49 A2 : SOUTH
+situation 49 A2p : SOUTH
+situation 50 A2 : EAST
+situation 50 A2p : NORTH
+situation 51 A2 : NORTH
+situation 51 A2p : NORTH
+situation 52 A2 : SOUTH
+situation 52 A2p : NORTH
+situation 53 A2 : SOUTH
+situation 53 A2p : SOUTH
+situation 54 A2 : NORTH
+situation 54 A2p : NORTH
+situation 55 A2 : WEST
+situation 55 A2p : WEST
+situation 56 A2 : EAST
+situation 56 A2p : EAST
+situation 57 A2 : SOUTH
+situation 57 A2p : SOUTH
+situation 58 A2 : SOUTH
+situation 58 A2p : SOUTH
+situation 59 A2 : SOUTH
+situation 59 A2p : SOUTH
+Situations : 44 vide_morte, 16 cible_vue. Rejeu d'A2 : même coup que la campagne dans 78% (47/60).
+
+| Famille | Bras | Mesure | Suit la plus probable (morte) | Replis | Tentatives coupées | Pensée moyenne |
+|---|---|---|---|---|---|---|
+| vide_morte | A2 | vers une issue morte : 77% (34/44) | 77% (34/44) | 0 | 6 | 3050 |
+| vide_morte | A2p | vers une issue morte : 26% (11/43) | 26% (11/43) | 1 | 8 | 2689 |
+| cible_vue | A2 | rapproche de la cible vue : 81% (13/16) | — | 0 | 0 | 2671 |
+| cible_vue | A2p | rapproche de la cible vue : 100% (16/16) | — | 0 | 0 | 1318 |
+
+vide_morte, apparié (sans replis) : seul A2 23, seul A2' 1, les deux 10, aucun 9 ; McNemar p = 0.000
+cible_vue, apparié (sans replis) : seul A2 0, seul A2' 3, les deux 13, aucun 0 ; McNemar p = 0.250
+FIN

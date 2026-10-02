@@ -1,0 +1,115 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+seed 1: capturé=True pas=21 temps=8289.2s latence_moy=145298ms replis=1 msg_moy=135
+seed 2: capturé=True pas=27 temps=8507.9s latence_moy=136627ms replis=0 msg_moy=107
+seed 0: capturé=True pas=24 temps=12106.7s latence_moy=172318ms replis=1 msg_moy=142
+seed 4: capturé=True pas=31 temps=13559.9s latence_moy=150378ms replis=1 msg_moy=113
+seed 5: capturé=False pas=60 temps=13977.1s latence_moy=101910ms replis=0 msg_moy=80
+seed 3: capturé=True pas=47 temps=19804.9s latence_moy=136924ms replis=3 msg_moy=144
+seed 6: capturé=False pas=60 temps=22634.8s latence_moy=134067ms replis=1 msg_moy=150
+seed 7: capturé=False pas=60 temps=31189.5s latence_moy=133787ms replis=12 msg_moy=179
+Bras A2. Seeds 0..7 (8 épisodes), T = 60.
+
+| Seed | Capture | Pas | Confinement à T | Confinement moyen | Temps mural (s) | Latence moy. (ms) | Replis | Positions/message |
+|---|---|---|---|---|---|---|---|---|
+| 0 | oui | 24 | 0.000 | 0.224 | 12106.7 | 172318 | 1 | 142 |
+| 1 | oui | 21 | 0.000 | 0.163 | 8289.2 | 145298 | 1 | 135 |
+| 2 | oui | 27 | 0.000 | 0.037 | 8507.9 | 136627 | 0 | 107 |
+| 3 | oui | 47 | 0.000 | 0.332 | 19804.9 | 136924 | 3 | 144 |
+| 4 | oui | 31 | 0.000 | 0.055 | 13559.9 | 150378 | 1 | 113 |
+| 5 | non | 60 | 0.010 | 0.201 | 13977.1 | 101910 | 0 | 80 |
+| 6 | non | 60 | 0.061 | 0.637 | 22634.8 | 134067 | 1 | 150 |
+| 7 | non | 60 | 0.745 | 0.729 | 31189.5 | 133787 | 12 | 179 |
+
+Paramètres du jeu :
+
+```json
+{
+  "size": 15,
+  "n_loops": 1,
+  "min_loop_len": 6,
+  "n_pursuers": 2,
+  "view_size": 5,
+  "min_spawn_dist": 6,
+  "max_steps": 60,
+  "target_memory": 6,
+  "target_cycle_bias": 0.5,
+  "comm_delay": 1,
+  "track_threshold": 8
+}
+```
+reprise : 8 épisode(s) déjà dans /workspace/results/a2/journal.jsonl, 22 à jouer
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+seed 15: capturé=True pas=10 temps=3278.5s latence_moy=144646ms replis=0 msg_moy=134
+seed 12: capturé=True pas=28 temps=13150.1s latence_moy=168749ms replis=1 msg_moy=143
+seed 10: capturé=True pas=60 temps=20650.5s latence_moy=141199ms replis=1 msg_moy=97
+seed 8: capturé=False pas=60 temps=21436.4s latence_moy=122270ms replis=3 msg_moy=83
+seed 16: capturé=False pas=60 temps=26679.9s latence_moy=168182ms replis=1 msg_moy=126
+seed 13: capturé=True pas=48 temps=31855.5s latence_moy=194467ms replis=3 msg_moy=165
+seed 17: capturé=True pas=32 temps=20044.2s latence_moy=206326ms replis=0 msg_moy=171
+seed 18: capturé=True pas=26 temps=13505.8s latence_moy=181092ms replis=0 msg_moy=139
+seed 9: capturé=False pas=60 temps=35138.0s latence_moy=171708ms replis=7 msg_moy=158
+seed 14: capturé=True pas=55 temps=36766.2s latence_moy=210819ms replis=2 msg_moy=154
+seed 25: capturé=True pas=24 temps=8092.4s latence_moy=146356ms replis=0 msg_moy=114
+seed 11: capturé=False pas=60 temps=45030.7s latence_moy=226386ms replis=5 msg_moy=213
+seed 24: capturé=True pas=33 temps=12872.7s latence_moy=156579ms replis=0 msg_moy=136
+seed 26: capturé=True pas=27 temps=9758.9s latence_moy=145889ms replis=1 msg_moy=85
+seed 19: capturé=False pas=60 temps=33426.9s latence_moy=208075ms replis=3 msg_moy=165
+seed 23: capturé=False pas=60 temps=20987.1s latence_moy=144455ms replis=1 msg_moy=103
+seed 21: capturé=True pas=59 temps=32480.3s latence_moy=190324ms replis=1 msg_moy=174
+seed 22: capturé=False pas=60 temps=32468.4s latence_moy=159915ms replis=4 msg_moy=127
+seed 20: capturé=False pas=60 temps=36399.0s latence_moy=169594ms replis=1 msg_moy=149
+seed 28: capturé=True pas=38 temps=19439.4s latence_moy=158784ms replis=4 msg_moy=154
+seed 27: capturé=True pas=56 temps=26920.0s latence_moy=118777ms replis=9 msg_moy=137
+seed 29: capturé=False pas=60 temps=17638.5s latence_moy=98309ms replis=2 msg_moy=126
+Bras A2. Seeds 0..29 (30 épisodes), T = 60.
+
+| Seed | Capture | Pas | Confinement à T | Confinement moyen | Temps mural (s) | Latence moy. (ms) | Replis | Positions/message |
+|---|---|---|---|---|---|---|---|---|
+| 0 | oui | 24 | 0.000 | 0.224 | 12106.7 | 172318 | 1 | 142 |
+| 1 | oui | 21 | 0.000 | 0.163 | 8289.2 | 145298 | 1 | 135 |
+| 2 | oui | 27 | 0.000 | 0.037 | 8507.9 | 136627 | 0 | 107 |
+| 3 | oui | 47 | 0.000 | 0.332 | 19804.9 | 136924 | 3 | 144 |
+| 4 | oui | 31 | 0.000 | 0.055 | 13559.9 | 150378 | 1 | 113 |
+| 5 | non | 60 | 0.010 | 0.201 | 13977.1 | 101910 | 0 | 80 |
+| 6 | non | 60 | 0.061 | 0.637 | 22634.8 | 134067 | 1 | 150 |
+| 7 | non | 60 | 0.745 | 0.729 | 31189.5 | 133787 | 12 | 179 |
+| 8 | non | 60 | 0.010 | 0.255 | 21436.4 | 122270 | 3 | 83 |
+| 9 | non | 60 | 0.010 | 0.433 | 35138.0 | 171708 | 7 | 158 |
+| 10 | oui | 60 | 0.000 | 0.232 | 20650.5 | 141199 | 1 | 97 |
+| 11 | non | 60 | 0.765 | 0.784 | 45030.7 | 226386 | 5 | 213 |
+| 12 | oui | 28 | 0.000 | 0.177 | 13150.1 | 168749 | 1 | 143 |
+| 13 | oui | 48 | 0.000 | 0.478 | 31855.5 | 194467 | 3 | 165 |
+| 14 | oui | 55 | 0.000 | 0.539 | 36766.2 | 210819 | 2 | 154 |
+| 15 | oui | 10 | 0.000 | 0.039 | 3278.5 | 144646 | 0 | 134 |
+| 16 | non | 60 | 0.010 | 0.394 | 26679.9 | 168182 | 1 | 126 |
+| 17 | oui | 32 | 0.000 | 0.253 | 20044.2 | 206326 | 0 | 171 |
+| 18 | oui | 26 | 0.000 | 0.156 | 13505.8 | 181092 | 0 | 139 |
+| 19 | non | 60 | 0.010 | 0.528 | 33426.9 | 208075 | 3 | 165 |
+| 20 | non | 60 | 0.071 | 0.401 | 36399.0 | 169594 | 1 | 149 |
+| 21 | oui | 59 | 0.000 | 0.682 | 32480.3 | 190324 | 1 | 174 |
+| 22 | non | 60 | 0.041 | 0.428 | 32468.4 | 159915 | 4 | 127 |
+| 23 | non | 60 | 0.010 | 0.168 | 20987.1 | 144455 | 1 | 103 |
+| 24 | oui | 33 | 0.000 | 0.241 | 12872.7 | 156579 | 0 | 136 |
+| 25 | oui | 24 | 0.000 | 0.056 | 8092.4 | 146356 | 0 | 114 |
+| 26 | oui | 27 | 0.000 | 0.050 | 9758.9 | 145889 | 1 | 85 |
+| 27 | oui | 56 | 0.000 | 0.368 | 26920.0 | 118777 | 9 | 137 |
+| 28 | oui | 38 | 0.000 | 0.293 | 19439.4 | 158784 | 4 | 154 |
+| 29 | non | 60 | 0.010 | 0.215 | 17638.5 | 98309 | 2 | 126 |
+
+Paramètres du jeu :
+
+```json
+{
+  "size": 15,
+  "n_loops": 1,
+  "min_loop_len": 6,
+  "n_pursuers": 2,
+  "view_size": 5,
+  "min_spawn_dist": 6,
+  "max_steps": 60,
+  "target_memory": 6,
+  "target_cycle_bias": 0.5,
+  "comm_delay": 1,
+  "track_threshold": 8
+}
+```

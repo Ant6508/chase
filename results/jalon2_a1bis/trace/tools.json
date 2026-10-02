@@ -1,0 +1,32 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "move",
+      "description": "Choisit le déplacement du poursuivant pour ce pas.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "STAY",
+              "NORTH",
+              "SOUTH",
+              "EAST",
+              "WEST"
+            ]
+          },
+          "reasoning": {
+            "type": "string",
+            "description": "Justification brève du choix, une ou deux phrases."
+          }
+        },
+        "required": [
+          "direction",
+          "reasoning"
+        ]
+      }
+    }
+  }
+]

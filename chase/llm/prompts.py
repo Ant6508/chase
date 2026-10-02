@@ -60,8 +60,11 @@ Réponds uniquement en appelant l'outil `move` avec la direction choisie et une 
 justification brève."""
 
 # Bras A1bis et A2 (docs/superpowers/specs/2026-09-29-jalon2-a2-design.md). SYSTEM_PROMPT
-# ci-dessus reste celui de la campagne A1v3, inchangé.
-ARMS = ("A1", "A1bis", "A2")
+# ci-dessus reste celui de la campagne A1v3, inchangé. A2p (A2') : A2 plus une consigne
+# explicite d'usage du message (même spec, § Points ouverts), après la campagne A2 qui
+# lisait le message sans écarter les lieux vus vides (results/jalon2_a2.md).
+ARMS = ("A1", "A1bis", "A2", "A2p")
+CHANNEL_ARMS = ("A2", "A2p")
 
 _INTRO_A1 = ("en coopération avec un coéquipier que tu ne peux PAS contacter : tu ne "
              "connais ni sa position ni ses intentions.")
@@ -100,13 +103,23 @@ précédent : la cible n'y est presque sûrement pas.
 Exemple : {"moi":"C2a.3","cible":null,"candidates":{"C7a":7,"C9":6,"K3":2},\
 "intention":["K1","C4a"],"je_couvre":null}"""
 
+USAGE_PARAGRAPH = """Avant de choisir ta direction, tiens compte du message de ton \
+coéquipier, s'il y en a un. Écarte les lieux qu'il a vus vides, c'est-à-dire absents de ses \
+`candidates` : la cible n'y est presque sûrement pas, même si ta perception leur donne \
+encore une probabilité. Une direction dont tous les lieux candidats ont été vus vides par \
+ton coéquipier ne mène presque sûrement pas à la cible : préfère une direction qui mène à \
+des lieux candidats à la fois dans ta perception et dans son message. S'il voit la cible, \
+rejoins-la ; sinon, sers-toi de sa position et de son intention pour vous répartir la \
+recherche."""
+
 MESSAGE_HEADER = "Message de ton coéquipier (écrit au pas précédent) :"
 NO_MESSAGE = "Aucun message reçu."
 
 
 def system_prompt(arm: str) -> str:
     """A1 : le prompt de la campagne A1v3. A1bis : le même, plus les lieux. A2 : les
-    lieux et le canal de message, avec la phrase sur le coéquipier remplacée."""
+    lieux et le canal de message, avec la phrase sur le coéquipier remplacée. A2p : celui
+    d'A2, plus la consigne d'usage du message juste avant la consigne de réponse."""
     if arm not in ARMS:
         raise ValueError(f"bras inconnu : {arm}")
     if arm == "A1":
@@ -116,7 +129,10 @@ def system_prompt(arm: str) -> str:
     body = SYSTEM_PROMPT.removesuffix(_ANSWER_A1) + PLACES_PARAGRAPH + "\n\n"
     if arm == "A1bis":
         return body + _ANSWER_A1
-    return body.replace(_INTRO_A1, _INTRO_A2) + CHANNEL_PARAGRAPH + "\n\n" + _ANSWER_A2
+    body = body.replace(_INTRO_A1, _INTRO_A2) + CHANNEL_PARAGRAPH + "\n\n"
+    if arm == "A2p":
+        body += USAGE_PARAGRAPH + "\n\n"
+    return body + _ANSWER_A2
 
 
 def message_block(rendered: str | None) -> str:

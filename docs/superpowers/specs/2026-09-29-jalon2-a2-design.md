@@ -638,6 +638,31 @@ run interrompu aux seeds manquantes. Un épisode où `fallback_count > 1` est su
   - **Son coût.** Une campagne A2 de plus, environ 24 h de pod. Le prompt d'A2 a une
     empreinte figée : A2' aura son propre prompt, sa propre empreinte et son propre
     journal.
+  - **Test avant toute campagne (décidé le 2026-10-02, après `results/jalon2_a2.md`).**
+    - **Pourquoi un test.** A2 ne fait pas mieux qu'A1bis (18 contre 19 captures sur 30).
+      Les traces montrent que le message est lu et sert pour la cible vue et la répartition,
+      mais pas pour les lieux vus vides (§ 6 du rapport). Une campagne A2' coûterait environ
+      30 h de pod, alors qu'à 30 seeds seule une hausse d'une vingtaine de points serait
+      visible. On teste d'abord le mécanisme.
+    - **Le prompt.** Bras `A2p` : le prompt d'A2, plus `USAGE_PARAGRAPH` juste avant la
+      consigne de réponse (`chase/llm/prompts.py`). L'empreinte d'A2 ne change pas.
+    - **Les situations.** Elles sont tirées des traces d'A2 par
+      `scripts/situations_a2p.py select`, avec le prompt utilisateur exact.
+      - Les 44 situations `vide_morte` : le coéquipier ne voyait pas la cible, et l'issue la
+        plus probable pour le récepteur seul est morte une fois sa croyance intersectée avec
+        le message reçu. A2 y a pris l'issue morte 35 fois.
+      - 16 situations `cible_vue`, comme témoin.
+      Chacune est jouée avec le prompt d'A2 puis avec celui d'A2', en appels entrelacés,
+      sur le pod de la campagne.
+    - **Règle de décision, fixée avant le test.** La campagne A2' est défendable si les trois
+      conditions sont réunies :
+      1. sur `vide_morte`, hors replis, A2' prend une issue morte dans 40 % des cas au plus,
+         et significativement moins qu'A2 rejoué (McNemar apparié, p < 0,05) ;
+      2. sur `cible_vue`, A2' rapproche de la cible dans au plus 2 situations de moins
+         qu'A2 rejoué ;
+      3. les replis et les tentatives coupées d'A2' ne doublent pas par rapport à A2 rejoué.
+      Sinon, on rapporte le résultat (le modèle n'applique pas la règle, même quand on la lui
+      demande), sans campagne.
 - **Relais.** Faire écrire à l'émetteur `candidates` comme l'intersection de sa
   perception et du message reçu. L'information s'accumulerait alors d'un pas à l'autre
   à travers les messages, au prix d'un calcul mental de plus. À envisager si A2 plafonne

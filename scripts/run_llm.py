@@ -59,7 +59,7 @@ from chase.llm.journal import EpisodeJournal
 from chase.llm.logging import EpisodeLLMStats, StepLog
 from chase.llm.message import load_tokenizer
 from chase.llm.policy import LLMPursuers
-from chase.llm.prompts import ARMS, system_prompt
+from chase.llm.prompts import ARMS, CHANNEL_ARMS, system_prompt
 from chase.policies import Percept
 from chase.target import ScriptedTarget
 
@@ -173,7 +173,7 @@ def main() -> None:
             f.write(system_prompt(args.arm))
         # la partie de l'outil que le prompt de l'émetteur ajoute (A4 la reconstituera)
         with open(os.path.join(args.trace, "tools.json"), "w", encoding="utf-8") as f:
-            json.dump([move_tool(args.arm == "A2")], f, indent=2, ensure_ascii=False)
+            json.dump([move_tool(args.arm in CHANNEL_ARMS)], f, indent=2, ensure_ascii=False)
 
     journal = None
     done: dict[int, dict] = {}
@@ -187,7 +187,7 @@ def main() -> None:
             params["arm"] = args.arm
             # modifier les prompts entre une pause et sa reprise refuse la reprise
             fingerprint = system_prompt(args.arm) + json.dumps(
-                move_tool(args.arm == "A2"), sort_keys=True, ensure_ascii=False)
+                move_tool(args.arm in CHANNEL_ARMS), sort_keys=True, ensure_ascii=False)
             params["prompts"] = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:16]
         journal = EpisodeJournal(args.journal, params)
         done = {s: r for s, r in journal.completed().items() if s in seeds}

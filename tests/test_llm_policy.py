@@ -330,6 +330,16 @@ def test_a1_keeps_the_a1v3_prompts():
                                         CFG.track_threshold)
 
 
+def test_a2p_uses_the_channel_with_its_own_system_prompt():
+    policy, client = _run_steps(
+        "A2p", [_say("P0t0"), _say("P1t0"), _say("P0t1"), _say("P1t1")])
+    _, _, (_, p0_t1), (_, p1_t1) = client.calls
+    assert p0_t1.endswith(render(_say("P1t0").message))
+    assert p1_t1.endswith(render(_say("P0t0").message))
+    assert client.with_message == [True] * 4
+    assert all(system == system_prompt("A2p") for system, _ in client.calls)
+
+
 def test_a2_requires_two_pursuers():
     with pytest.raises(ValueError, match="2 poursuivants"):
         LLMPursuers(CFG.replace(n_pursuers=3), LLM_CFG, client=FakeLLMClient([]), arm="A2")

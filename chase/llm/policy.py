@@ -27,7 +27,7 @@ from .client import LLMClient, LMStudioClient
 from .config import LLMConfig
 from .logging import REASONING_LOG_CHARS, StepLog
 from .places import Places
-from .prompts import ARMS, build_perception, message_block, system_prompt
+from .prompts import ARMS, CHANNEL_ARMS, build_perception, message_block, system_prompt
 
 
 class LLMPursuers(PursuerPolicy):
@@ -37,7 +37,7 @@ class LLMPursuers(PursuerPolicy):
                  arm: str = "A1"):
         if arm not in ARMS:
             raise ValueError(f"bras inconnu : {arm}")
-        if arm == "A2" and cfg.n_pursuers != 2:
+        if arm in CHANNEL_ARMS and cfg.n_pursuers != 2:
             raise ValueError("A2 suppose 2 poursuivants : chaque message va à l'autre")
         super().__init__(cfg)
         self.arm = arm
@@ -73,7 +73,7 @@ class LLMPursuers(PursuerPolicy):
         return list(self._probs)
 
     def act(self, percepts: list[Percept]) -> list[Move]:
-        channel = self.arm == "A2"
+        channel = self.arm in CHANNEL_ARMS
         outbox: list[str | None] = [None] * len(percepts)
         moves = []
         for i, p in enumerate(percepts):

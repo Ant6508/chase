@@ -10,8 +10,9 @@ import pytest
 
 from chase.graph import MazeGraph
 from chase.llm.message import validate
-from chase.llm.prompts import (CHANNEL_PARAGRAPH, MESSAGE_HEADER, NO_MESSAGE, PLACES_PARAGRAPH,
-                               SYSTEM_PROMPT, build_perception, message_block, system_prompt)
+from chase.llm.prompts import (CHANNEL_ARMS, CHANNEL_PARAGRAPH, MESSAGE_HEADER, NO_MESSAGE,
+                               PLACES_PARAGRAPH, SYSTEM_PROMPT, USAGE_PARAGRAPH, build_perception,
+                               message_block, system_prompt)
 from chase.llm.places import Places
 
 
@@ -265,6 +266,15 @@ def test_a2_adds_places_and_channel_and_asks_for_the_message():
     assert "ne peux PAS contacter" not in text
     assert "avec qui tu échanges un message à chaque pas" in text
     assert text.endswith("une justification brève et ton message.")
+
+
+def test_a2p_is_a2_plus_the_usage_instruction_before_the_answer():
+    a2, a2p = system_prompt("A2"), system_prompt("A2p")
+    assert a2p.replace(USAGE_PARAGRAPH + "\n\n", "") == a2
+    assert a2p.index(CHANNEL_PARAGRAPH) < a2p.index(USAGE_PARAGRAPH)
+    assert a2p.endswith("une justification brève et ton message.")
+    assert "vus vides" in USAGE_PARAGRAPH and "rejoins-la" in USAGE_PARAGRAPH
+    assert CHANNEL_ARMS == ("A2", "A2p")
 
 
 def test_channel_example_is_a_valid_message():

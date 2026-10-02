@@ -22,7 +22,7 @@ from dataclasses import replace
 from chase.llm.client import LMStudioClient
 from chase.llm.config import LLMConfig
 from chase.llm.logging import REASONING_LOG_CHARS
-from chase.llm.prompts import ARMS, system_prompt
+from chase.llm.prompts import ARMS, CHANNEL_ARMS, system_prompt
 from scripts.analyze_trace import parse_exits
 
 
@@ -56,7 +56,7 @@ def draw(trace_dir: str, groups: dict[str, list[int]], n: int, seed: int = 0) ->
 def replay(client, name: str, rec: dict, arm: str = "A1") -> dict:
     # user_prompt (A1bis, A2) contient aussi le message reçu ; absent des traces d'A1v3
     user = rec.get("user_prompt") or rec["perception"]
-    if arm == "A2":
+    if arm in CHANNEL_ARMS:
         result = client.decide(system_prompt(arm), user, with_message=True)
     else:
         result = client.decide(system_prompt(arm), user)

@@ -1,4 +1,4 @@
-"""Qualité et usage des messages A2, comparés au témoin A1bis, par rejeu des traces.
+"""Qualité et usage des messages A2 (ou A2'), comparés aux autres bras, par rejeu des traces.
 
 Chaque épisode est rejoué dans l'environnement avec les coups enregistrés (la cible
 scriptée retombe sur les mêmes coups, vérifié pas à pas contre la trace). On recalcule
@@ -18,15 +18,21 @@ Usage (A2 contre A1bis) :
     rapprochent de la case où elle était vue.
 (c) exploration (aucun ne voit la cible) : distance de chemin moyenne entre les deux
     poursuivants, et part des pas où ils sont à 3 cases ou moins l'un de l'autre.
+(d) phase de capture (au moins un voit la cible) : territoire de la cible (cases qu'elle
+    atteint strictement avant les deux poursuivants), et part des pas en tenaille (la cible
+    est sur un plus court chemin entre eux).
 
 (a) est séparé selon ce que savait le coéquipier : « cible » s'il la voyait, « vide » sinon
 (seuls ses lieux vus vides écartent alors une issue). Tests : permutation appariée par seed.
 
-Depuis la racine du dépôt (rapport : results/jalon2_a2.md) :
+Depuis la racine du dépôt (rapports : results/jalon2_a2.md, results/jalon2_a2p.md) :
 
-    PYTHONPATH=. python results/jalon2_a2/msg_usage.py
+    PYTHONPATH=. python results/jalon2_a2/msg_usage.py            # A2 contre A1bis
+    PYTHONPATH=. python results/jalon2_a2/msg_usage.py A2p A2 A1bis
 
-Écrit aussi examples.jsonl (décisions d'A2 citées en exemple) dans le dossier courant.
+Le premier bras est comparé à chacun des suivants ; les traces sont lues dans
+results/jalon2_<bras>/trace. Écrit aussi examples.jsonl (décisions des bras à canal citées
+en exemple) dans le dossier courant.
 """
 from __future__ import annotations
 
@@ -34,6 +40,7 @@ import glob
 import json
 import re
 import statistics
+import sys
 
 from collections import Counter
 
@@ -50,6 +57,7 @@ from chase.runner import _percepts, run_episode
 from chase.target import ScriptedTarget
 
 CFG = ChaseConfig().replace(max_steps=60, size=15, n_loops=1, min_loop_len=6, min_spawn_dist=6)
+CHANNEL_ARMS = ("A2", "A2p")
 
 
 def support(g, places, message):
@@ -71,6 +79,14 @@ def exits_cells(g, here, mask):
     for n in g.neighbors[here]:
         out[n] = cand[g.dist[n, cand] == g.dist[here, cand] - 1]
     return out
+
+
+def pincer(g, here, tcell):
+    """Territoire de la cible (cases qu'elle atteint strictement avant les deux poursuivants)
+    et tenaille (la cible est sur un plus court chemin entre eux)."""
+    d0, d1 = g.dist[here[0]], g.dist[here[1]]
+    terr = int((g.dist[tcell] < np.minimum(d0, d1)).sum())
+    return terr, bool(d0[tcell] + d1[tcell] == d0[here[1]])
 
 
 def next_cell(g, here, move):
@@ -114,7 +130,7 @@ def replay(path, c: Counter, lists: dict, arm: str, per_seed: dict, examples: li
         # --- qualité des messages émis (A2)
         for i in range(2):
             r = rs[i]
-            if arm != "A2":
+            if arm not in CHANNEL_ARMS:
                 continue
             c["décisions"] += 1
             if r["message_out"] is None:
@@ -138,6 +154,12 @@ def replay(path, c: Counter, lists: dict, arm: str, per_seed: dict, examples: li
             else:
                 c["cible_cachée"] += 1
                 c["cible_cachée_inventée"] += m["cible"] is not None
+                # message vrai : la vraie case de la cible reste dans ce que le message laisse possible
+                c["cible_cachée_vrai"] += bool(support(g, places, m)[env.target_pos])
+                if m["cible"] is not None and m["cible"] in places.cell_by_name:
+                    lists["inventée_distance"].append(
+                        float(g.dist[places.cell_by_name[m["cible"]], int(g.index[env.target_pos])]))
+                    c["inventée_relais"] += bool(r["message_in"]) and json.loads(r["message_in"])["cible"] == m["cible"]
                 listed = set(m["candidates"]) & set(places.by_name)
                 cover = np.zeros(free.shape, dtype=bool)
                 for name in listed:
@@ -166,7 +188,7 @@ def replay(path, c: Counter, lists: dict, arm: str, per_seed: dict, examples: li
                 if seen[i] is None:
                     sources = {"méca": write_message(g, places, ppos[j], pbel[j], pprob[j],
                                                      pseen[j], [])}
-                    if arm == "A2" and r["message_in"]:
+                    if arm in CHANNEL_ARMS and r["message_in"]:
                         sources["reçu"] = json.loads(r["message_in"])
                     # « vide » : le coéquipier ne voyait pas la cible, seuls ses lieux vus vides
                     # (absents de `candidates`) permettent d'écarter une issue
@@ -193,8 +215,8 @@ def replay(path, c: Counter, lists: dict, arm: str, per_seed: dict, examples: li
                                 c[f"a_{src}_best_morte_suivie"] += nxt == best
                                 ps[f"abest_{src}_n"] += 1
                                 ps[f"abest_{src}_k"] += nxt == best
-                                if arm == "A2" and src == "reçu_vide":
-                                    examples.append(("a" if nxt != best else "a_suivie", seed, step, i, r))
+                                if arm in CHANNEL_ARMS and src == "reçu_vide":
+                                    examples.append(("a" if nxt != best else "a_suivie", arm, seed, step, i, r))
                     # (b) seul le coéquipier voyait la cible au pas précédent
                     if pseen[j] is not None and pseen[i] is None:
                         tc = int(g.index[pseen[j]])
@@ -203,9 +225,9 @@ def replay(path, c: Counter, lists: dict, arm: str, per_seed: dict, examples: li
                         ps = per_seed.setdefault(seed, Counter())
                         ps["b_n"] += 1
                         ps["b_k"] += g.dist[nxt, tc] < g.dist[here[i], tc]
-                        if arm == "A2":
-                            examples.append(("b", seed, step, i, r))
-                        if arm == "A2" and r["message_in"]:
+                        if arm in CHANNEL_ARMS:
+                            examples.append(("b", arm, seed, step, i, r))
+                        if arm in CHANNEL_ARMS and r["message_in"]:
                             c["b_message_cible"] += json.loads(r["message_in"])["cible"] is not None
         if seen[0] is None and seen[1] is None:
             d = g.dist[here[0], here[1]]
@@ -215,6 +237,16 @@ def replay(path, c: Counter, lists: dict, arm: str, per_seed: dict, examples: li
             ps = per_seed.setdefault(seed, Counter())
             ps["c_n"] += 1
             ps["c_k"] += d <= 3
+        else:
+            terr, between = pincer(g, here, int(g.index[env.target_pos]))
+            lists["d_territoire"].append(terr)
+            c["d_pas"] += 1
+            c["d_tenaille"] += between
+            ps = per_seed.setdefault(seed, Counter())
+            ps["d_n"] += 1
+            ps["d_k"] += between
+            ps["dterr_n"] += 1
+            ps["dterr_k"] += terr
 
         prev = ([b.copy() for b in bel], [q.copy() for q in prob], list(seen), list(here),
                 [per[0].pos, per[1].pos])
@@ -226,18 +258,24 @@ def replay(path, c: Counter, lists: dict, arm: str, per_seed: dict, examples: li
     c["épisodes"] += 1
 
 
-def scripted_separation(name):
-    lists = []
+def scripted_lists(name):
+    """Distances en exploration (c), puis territoires et tenailles en phase de capture (d)."""
+    sep, terr, between = [], [], []
     for seed in range(30):
         pol = ProtocolPursuers(CFG) if name == "P2" else make_policy(name, CFG)
 
         def hook(env, policy):
             vis = env.visibility()
+            g = env.graph
+            here = [int(g.index[env.pursuer_pos(p)]) for p in range(2)]
             if all(env.target_seen_by(vis[p]) is None for p in range(2)):
-                g = env.graph
-                lists.append(g.dist[g.index[env.pursuer_pos(0)], g.index[env.pursuer_pos(1)]])
+                sep.append(g.dist[here[0], here[1]])
+            elif not env.done:
+                t, b = pincer(g, here, int(g.index[env.target_pos]))
+                terr.append(t)
+                between.append(b)
         run_episode(CFG, pol, seed, on_step=hook)
-    return lists
+    return sep, terr, between
 
 
 def pct(a, b):
@@ -262,25 +300,33 @@ def perm_test(sa: dict, sb: dict, key: str, draws: int = 100_000, rng_seed: int 
 
 
 def main():
+    arms = sys.argv[1:] or ["A2", "A1bis"]
     seeds_of = {}
     all_examples = []
-    for arm, d in (("A2", "results/jalon2_a2/trace"), ("A1bis", "results/jalon2_a1bis/trace")):
+    for arm in arms:
+        d = f"results/jalon2_{arm.lower()}/trace"
         c, lists = Counter(), {k: [] for k in ("couverture_masse", "couverture_cases", "lieux_vrais",
                                                 "lieux_listés", "lieux_listés_vides", "lieux_omis",
-                                                "intention_len", "c_distance")}
+                                                "intention_len", "c_distance", "d_territoire",
+                                                "inventée_distance")}
         per_seed, examples = {}, []
         for p in sorted(glob.glob(f"{d}/seed_*.jsonl"), key=lambda p: int(re.search(r"seed_(\d+)", p).group(1))):
             replay(p, c, lists, arm, per_seed, examples)
         seeds_of[arm] = per_seed
         all_examples += examples
         print(f"===== {arm} : {c['épisodes']} épisodes rejoués (positions conformes à la trace)")
-        if arm == "A2":
+        if arm in CHANNEL_ARMS:
             print("messages valides", pct(c["messages"], c["décisions"]))
             print("moi exact", pct(c["moi_exact"], c["messages"]), "; bon lieu", pct(c["moi_bon_lieu"], c["messages"]))
             print("cible vue :", c["cible_vue"], "; exacte", pct(c["cible_vue_exacte"], c["cible_vue"]),
                   "; bon lieu, mauvais rang", pct(c["cible_vue_bon_lieu"], c["cible_vue"]),
                   "; fausse", pct(c["cible_vue_fausse"], c["cible_vue"]), "; null", pct(c["cible_vue_null"], c["cible_vue"]))
-            print("cible cachée :", c["cible_cachée"], "; cible inventée", pct(c["cible_cachée_inventée"], c["cible_cachée"]))
+            print("cible cachée :", c["cible_cachée"], "; cible inventée", pct(c["cible_cachée_inventée"], c["cible_cachée"]),
+                  "; message vrai (la vraie case reste possible)", pct(c["cible_cachée_vrai"], c["cible_cachée"]))
+            inv = lists["inventée_distance"]
+            if inv:
+                print(f"cible inventée : relais de la cible reçue {pct(c['inventée_relais'], len(inv))}, "
+                      f"distance à la vraie case : moyenne {statistics.mean(inv):.1f}, médiane {statistics.median(inv)}")
             cm = lists["couverture_masse"]
             print(f"couverture de la masse : moyenne {statistics.mean(cm):.1%}, médiane {statistics.median(cm):.1%}, "
                   f"complète (>= 99,5 %) {sum(x >= 0.995 for x in cm) / len(cm):.1%}, < 90 % {sum(x < 0.9 for x in cm) / len(cm):.1%}, "
@@ -291,31 +337,40 @@ def main():
             print("je_couvre renseigné", pct(c["je_couvre"], c["messages"]),
                   f"; intention : {statistics.mean(lists['intention_len']):.1f} lieux en moyenne")
         print("(b) seul le coéquipier voyait la cible : rapproche", pct(c["b_rapproche"], c["b_situations"]),
-              *(["; message avec cible", pct(c["b_message_cible"], c["b_situations"])] if arm == "A2" else []))
+              *(["; message avec cible", pct(c["b_message_cible"], c["b_situations"])] if arm in CHANNEL_ARMS else []))
         dist = lists["c_distance"]
         print(f"(c) exploration : {c['c_pas']} pas, distance moyenne {statistics.mean(dist):.1f}, "
               f"médiane {statistics.median(dist)}, à 3 cases ou moins {pct(c['c_proches'], c['c_pas'])}")
+        terr = lists["d_territoire"]
+        print(f"(d) capture : {c['d_pas']} pas, territoire moyen {statistics.mean(terr):.1f}, "
+              f"médiane {statistics.median(terr)}, en tenaille {pct(c['d_tenaille'], c['d_pas'])}")
         for src in ("reçu_cible", "reçu_vide", "méca_cible", "méca_vide"):
             if c[f"a_{src}_situations"]:
                 print(f"(a) [{src}] situations {c[f'a_{src}_situations']} : vers une morte "
                       f"{pct(c[f'a_{src}_vers_morte'], c[f'a_{src}_situations'])} ; plus probable morte "
                       f"{c[f'a_{src}_best_morte']} fois, suivie "
                       f"{pct(c[f'a_{src}_best_morte_suivie'], c[f'a_{src}_best_morte'])}")
-    a2, a1 = seeds_of["A2"], seeds_of["A1bis"]
     for key, label in (("a_méca_cible", "(a) cible vue par le coéquipier : vers une issue morte"),
                        ("a_méca_vide", "(a) lieux vus vides seulement : vers une issue morte"),
                        ("abest_méca_cible", "(a) cible vue : suit la plus probable quand elle est morte"),
                        ("abest_méca_vide", "(a) vus vides : suit la plus probable quand elle est morte"),
-                       ("b", "(b) rapproche de la cible vue par le coéquipier"), ("c", "(c) à 3 cases ou moins en exploration")):
-        ra, rb, pv = perm_test(a2, a1, key)
-        print(f"{label} : A2 {ra:.1%} contre A1bis {rb:.1%}, p = {pv:.4f} (permutation appariée par seed)")
+                       ("b", "(b) rapproche de la cible vue par le coéquipier"), ("c", "(c) à 3 cases ou moins en exploration"),
+                       ("d", "(d) en tenaille en phase de capture")):
+        for other in arms[1:]:
+            ra, rb, pv = perm_test(seeds_of[arms[0]], seeds_of[other], key)
+            print(f"{label} : {arms[0]} {ra:.1%} contre {other} {rb:.1%}, p = {pv:.4f} (permutation appariée par seed)")
+    for other in arms[1:]:
+        ra, rb, pv = perm_test(seeds_of[arms[0]], seeds_of[other], "dterr")
+        print(f"(d) territoire moyen : {arms[0]} {ra:.1f} contre {other} {rb:.1f}, p = {pv:.4f} (permutation appariée par seed)")
     for name in ("R1", "R2", "P2"):
-        dist = scripted_separation(name)
+        dist, terr, between = scripted_lists(name)
         print(f"(c) {name} : {len(dist)} pas, distance moyenne {statistics.mean(dist):.1f}, "
               f"médiane {statistics.median(dist)}, à 3 cases ou moins {sum(x <= 3 for x in dist) / len(dist):.1%}")
+        print(f"(d) {name} : {len(terr)} pas, territoire moyen {statistics.mean(terr):.1f}, "
+              f"médiane {statistics.median(terr)}, en tenaille {sum(between) / len(between):.1%}")
     with open("examples.jsonl", "w", encoding="utf-8") as f:
-        for kind, seed, step, i, r in all_examples:
-            f.write(json.dumps({"kind": kind, "seed": seed, "step": step, "pursuer": i, "move": r["move"],
+        for kind, arm, seed, step, i, r in all_examples:
+            f.write(json.dumps({"kind": kind, "arm": arm, "seed": seed, "step": step, "pursuer": i, "move": r["move"],
                                 "message_in": r["message_in"], "perception": r["perception"],
                                 "thinking": r["thinking"], "reasoning": r["reasoning"]}, ensure_ascii=False))
             f.write(chr(10))

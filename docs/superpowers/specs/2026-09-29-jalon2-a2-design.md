@@ -663,10 +663,18 @@ run interrompu aux seeds manquantes. Un épisode où `fallback_count > 1` est su
       3. les replis et les tentatives coupées d'A2' ne doublent pas par rapport à A2 rejoué.
       Sinon, on rapporte le résultat (le modèle n'applique pas la règle, même quand on la lui
       demande), sans campagne.
+  - **Résultat (2026-10-03).** Le test a rempli la règle ([`results/jalon2_a2p_test.md`](../../../results/jalon2_a2p_test.md)),
+    et la campagne a été faite ([`results/jalon2_a2p.md`](../../../results/jalon2_a2p.md)).
+    - **Captures.** A2' capture 15 fois sur 30, contre 18 pour A2 (p = 0,55).
+    - **Usage.** La règle d'intersection est appliquée : 4,4 % d'issues mortes, contre 26,4 %.
+    - **Pourquoi pas plus de captures.** Le goulot est la phase de capture : aucun bras LLM
+      n'y prend la cible en tenaille. S'y ajoute un effet de bord : A2' relaie en `cible` la
+      cible vue par son coéquipier, et 22,8 % de ses messages sont faux.
 - **Relais.** Faire écrire à l'émetteur `candidates` comme l'intersection de sa
   perception et du message reçu. L'information s'accumulerait alors d'un pas à l'autre
   à travers les messages, au prix d'un calcul mental de plus. À envisager si A2 plafonne
-  nettement sous P2.
+  nettement sous P2. A2' l'a fait de lui-même, mais mal : sans propager d'un pas le message
+  reçu, et en relayant la `cible` ([`results/jalon2_a2p.md`](../../../results/jalon2_a2p.md), § 5.2).
 - **A4.**
   - Choisir le coup cible de l'entraînement : celui de R2, de P2 ou d'A2.
   - Reconstituer le tour de l'émetteur pour en extraire les états cachés sur les

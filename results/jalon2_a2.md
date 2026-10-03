@@ -357,3 +357,6 @@ cible n'y est pas, sauf si elle a pu y revenir depuis ».
 **Ce qui le mesurerait.**
 - La ligne « lieux vus vides seulement » du § 6 (a) doit passer sous A1bis.
 - A2' doit se rapprocher de P2, qui est le plafond de ce protocole.
+
+**Fait depuis** : [`jalon2_a2p_test.md`](jalon2_a2p_test.md), puis
+[`jalon2_a2p.md`](jalon2_a2p.md). La première condition est remplie, la seconde ne l'est pas.

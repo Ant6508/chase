@@ -1,0 +1,82 @@
+seed 2: capturé=True pas=27 temps=7438.4s latence_moy=110523ms replis=0 msg_moy=75
+seed 4: capturé=True pas=31 temps=9485.1s latence_moy=146854ms replis=0 msg_moy=84
+seed 0: capturé=True pas=20 temps=10378.5s latence_moy=147202ms replis=1 msg_moy=109
+seed 6: capturé=True pas=38 temps=12485.8s latence_moy=135205ms replis=0 msg_moy=94
+seed 5: capturé=False pas=60 temps=15168.5s latence_moy=110689ms replis=0 msg_moy=76
+seed 1: capturé=True pas=32 temps=19760.8s latence_moy=197664ms replis=2 msg_moy=154
+seed 8: capturé=True pas=35 temps=16489.1s latence_moy=149972ms replis=1 msg_moy=97
+seed 11: capturé=True pas=24 temps=11546.3s latence_moy=192665ms replis=0 msg_moy=142
+seed 9: capturé=True pas=37 temps=15555.8s latence_moy=148383ms replis=2 msg_moy=102
+seed 10: capturé=True pas=55 temps=18222.1s latence_moy=135029ms replis=0 msg_moy=90
+seed 13: capturé=True pas=31 temps=20327.4s latence_moy=172422ms replis=4 msg_moy=131
+seed 12: capturé=False pas=60 temps=26198.6s latence_moy=160013ms replis=2 msg_moy=115
+seed 3: capturé=False pas=60 temps=47597.1s latence_moy=212488ms replis=5 msg_moy=170
+seed 16: capturé=False pas=60 temps=23101.2s latence_moy=139892ms replis=3 msg_moy=111
+seed 17: capturé=True pas=47 temps=20515.8s latence_moy=140927ms replis=4 msg_moy=106
+seed 15: capturé=True pas=37 temps=25844.5s latence_moy=201541ms replis=4 msg_moy=170
+seed 7: capturé=False pas=60 temps=50942.2s latence_moy=222722ms replis=10 msg_moy=169
+seed 18: capturé=True pas=30 temps=14017.5s latence_moy=158732ms replis=2 msg_moy=127
+seed 25: capturé=True pas=24 temps=5709.1s latence_moy=111565ms replis=0 msg_moy=81
+seed 19: capturé=False pas=60 temps=22350.8s latence_moy=139590ms replis=2 msg_moy=86
+seed 14: capturé=False pas=60 temps=40758.9s latence_moy=199891ms replis=7 msg_moy=157
+seed 23: capturé=False pas=60 temps=17529.9s latence_moy=118439ms replis=1 msg_moy=74
+seed 26: capturé=False pas=60 temps=12895.9s latence_moy=70876ms replis=1 msg_moy=55
+seed 24: capturé=True pas=43 temps=22511.6s latence_moy=179371ms replis=1 msg_moy=120
+seed 20: capturé=False pas=60 temps=34729.2s latence_moy=190367ms replis=3 msg_moy=141
+seed 29: capturé=False pas=60 temps=17402.2s latence_moy=109782ms replis=2 msg_moy=89
+seed 21: capturé=False pas=60 temps=39210.9s latence_moy=196785ms replis=2 msg_moy=166
+seed 22: capturé=False pas=60 temps=38536.3s latence_moy=173850ms replis=7 msg_moy=143
+seed 27: capturé=False pas=60 temps=30273.4s latence_moy=124114ms replis=6 msg_moy=145
+seed 28: capturé=False pas=60 temps=32489.5s latence_moy=150474ms replis=8 msg_moy=170
+Bras A2p. Seeds 0..29 (30 épisodes), T = 60.
+
+| Seed | Capture | Pas | Confinement à T | Confinement moyen | Temps mural (s) | Latence moy. (ms) | Replis | Positions/message |
+|---|---|---|---|---|---|---|---|---|
+| 0 | oui | 20 | 0.000 | 0.133 | 10378.5 | 147202 | 1 | 109 |
+| 1 | oui | 32 | 0.000 | 0.331 | 19760.8 | 197664 | 2 | 154 |
+| 2 | oui | 27 | 0.000 | 0.037 | 7438.4 | 110523 | 0 | 75 |
+| 3 | non | 60 | 0.684 | 0.760 | 47597.1 | 212488 | 5 | 170 |
+| 4 | oui | 31 | 0.000 | 0.055 | 9485.1 | 146854 | 0 | 84 |
+| 5 | non | 60 | 0.010 | 0.211 | 15168.5 | 110689 | 0 | 76 |
+| 6 | oui | 38 | 0.000 | 0.154 | 12485.8 | 135205 | 0 | 94 |
+| 7 | non | 60 | 0.806 | 0.745 | 50942.2 | 222722 | 10 | 169 |
+| 8 | oui | 35 | 0.000 | 0.164 | 16489.1 | 149972 | 1 | 97 |
+| 9 | oui | 37 | 0.000 | 0.123 | 15555.8 | 148383 | 2 | 102 |
+| 10 | oui | 55 | 0.000 | 0.212 | 18222.1 | 135029 | 0 | 90 |
+| 11 | oui | 24 | 0.000 | 0.179 | 11546.3 | 192665 | 0 | 142 |
+| 12 | non | 60 | 0.010 | 0.288 | 26198.6 | 160013 | 2 | 115 |
+| 13 | oui | 31 | 0.000 | 0.245 | 20327.4 | 172422 | 4 | 131 |
+| 14 | non | 60 | 0.010 | 0.689 | 40758.9 | 199891 | 7 | 157 |
+| 15 | oui | 37 | 0.000 | 0.381 | 25844.5 | 201541 | 4 | 170 |
+| 16 | non | 60 | 0.010 | 0.395 | 23101.2 | 139892 | 3 | 111 |
+| 17 | oui | 47 | 0.000 | 0.246 | 20515.8 | 140927 | 4 | 106 |
+| 18 | oui | 30 | 0.000 | 0.210 | 14017.5 | 158732 | 2 | 127 |
+| 19 | non | 60 | 0.061 | 0.137 | 22350.8 | 139590 | 2 | 86 |
+| 20 | non | 60 | 0.102 | 0.484 | 34729.2 | 190367 | 3 | 141 |
+| 21 | non | 60 | 0.031 | 0.783 | 39210.9 | 196785 | 2 | 166 |
+| 22 | non | 60 | 0.061 | 0.593 | 38536.3 | 173850 | 7 | 143 |
+| 23 | non | 60 | 0.010 | 0.161 | 17529.9 | 118439 | 1 | 74 |
+| 24 | oui | 43 | 0.000 | 0.316 | 22511.6 | 179371 | 1 | 120 |
+| 25 | oui | 24 | 0.000 | 0.056 | 5709.1 | 111565 | 0 | 81 |
+| 26 | non | 60 | 0.010 | 0.096 | 12895.9 | 70876 | 1 | 55 |
+| 27 | non | 60 | 0.010 | 0.505 | 30273.4 | 124114 | 6 | 145 |
+| 28 | non | 60 | 0.724 | 0.770 | 32489.5 | 150474 | 8 | 170 |
+| 29 | non | 60 | 0.010 | 0.228 | 17402.2 | 109782 | 2 | 89 |
+
+Paramètres du jeu :
+
+```json
+{
+  "size": 15,
+  "n_loops": 1,
+  "min_loop_len": 6,
+  "n_pursuers": 2,
+  "view_size": 5,
+  "min_spawn_dist": 6,
+  "max_steps": 60,
+  "target_memory": 6,
+  "target_cycle_bias": 0.5,
+  "comm_delay": 1,
+  "track_threshold": 8
+}
+```

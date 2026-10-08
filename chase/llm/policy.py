@@ -1,16 +1,18 @@
-"""Politique de poursuite pilotée par un LLM : bras A1, A1bis et A2.
+"""Politique de poursuite pilotée par un LLM : bras A1, A1bis, A2, A2' et A3.
 
-Dans les trois bras, la croyance est individuelle et identique à celle de
+Dans tous les bras, la croyance est individuelle et identique à celle de
 GreedyPursuers(fused=False) (R1) : le harnais ne fusionne jamais rien. Seule la
 décision (act) change : elle vient d'un appel LLM au lieu de l'heuristique.
 
 - A1 : perception de la campagne A1v3, aucun contact avec le coéquipier.
 - A1bis : même perception, plus les lieux nommés (chase/llm/places.py).
-- A2 : perception d'A1bis, plus le message écrit par le coéquipier au pas
-  précédent, en fin de prompt. Chacun écrit le sien dans le même appel. Le
-  harnais ne lit jamais le contenu d'un message pour décider ou calculer quoi
-  que ce soit : il le valide, le réécrit, le compte, relève les noms inconnus
-  et le transmet (docs/superpowers/specs/2026-09-29-jalon2-a2-design.md).
+- A2, A2' et A3 : perception d'A1bis, plus le message écrit par le coéquipier au
+  pas précédent, en fin de prompt. Chacun écrit le sien dans le même appel, selon la
+  spec de message de son bras (A2_SPEC pour A2 et A2', A3_SPEC pour A3). Le harnais
+  ne lit jamais le contenu d'un message pour décider ou calculer quoi que ce soit :
+  il le valide, le réécrit, le compte, relève les noms inconnus et le transmet
+  (docs/superpowers/specs/2026-09-29-jalon2-a2-design.md,
+  docs/superpowers/specs/2026-10-08-jalon2-a3-design.md).
 """
 
 from __future__ import annotations

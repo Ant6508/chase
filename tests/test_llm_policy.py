@@ -11,7 +11,7 @@ from chase.env import ChaseEnv
 from chase.llm.client import LLMCallResult
 from chase.llm.config import LLMConfig
 from chase.llm.logging import REASONING_LOG_CHARS
-from chase.llm.message import A2_SPEC, render
+from chase.llm.message import A2_SPEC, A3_SPEC, render
 from chase.llm.policy import LLMPursuers
 from chase.llm.prompts import MESSAGE_HEADER, NO_MESSAGE, SYSTEM_PROMPT, build_perception, system_prompt
 from chase.moves import Move
@@ -52,7 +52,7 @@ def _percepts(env, vis):
             for p in range(env.cfg.n_pursuers)]
 
 
-@pytest.mark.parametrize("arm", ["A1", "A1bis", "A2"])
+@pytest.mark.parametrize("arm", ["A1", "A1bis", "A2", "A3"])
 def test_individual_belief_matches_r1(arm):
     """La croyance individuelle de LLMPursuers doit être identique à celle de
     GreedyPursuers(fused=False) sur la même séquence de percepts : même calcul,
@@ -72,6 +72,9 @@ def test_individual_belief_matches_r1(arm):
         results = [_say("K1", message={"moi": "K1", "cible": "K3",
                                        "candidates": {"K5": 99, "K6": 1},
                                        "intention": [], "je_couvre": None})
+                   for _ in range(2 * n_steps)]
+    elif arm == "A3":
+        results = [_say("K1", message={"moi": "K1", "cible": "K3", "intention": ["K5"]})
                    for _ in range(2 * n_steps)]
     else:
         results = [_ok(Move.STAY) for _ in range(2 * n_steps)]
@@ -362,3 +365,35 @@ def test_step_log_copies_finish_reason_and_attempt_errors():
     policy.act(percepts)
     assert (policy.step_logs[0].finish_reason, policy.step_logs[0].attempt_errors) == ("length", ["a", "b"])
     assert (policy.step_logs[1].finish_reason, policy.step_logs[1].attempt_errors) == ("", [])
+
+
+def _say3(moi: str, **changes) -> LLMCallResult:
+    """Coup valide avec un message A3, dont `moi` identifie l'auteur."""
+    return _say(moi, message={"moi": moi, "cible": None, "intention": []}, **changes)
+
+
+def test_a3_message_is_read_by_the_other_pursuer_at_the_next_step_only():
+    policy, client = _run_steps(
+        "A3", [_say3("P0t0"), _say3("P1t0"), _say3("P0t1"), _say3("P1t1")])
+    (_, p0_t0), (_, p1_t0), (_, p0_t1), (_, p1_t1) = client.calls
+    assert p0_t0.endswith(f"{MESSAGE_HEADER}\n{NO_MESSAGE}")
+    assert p1_t0.endswith(f"{MESSAGE_HEADER}\n{NO_MESSAGE}")
+    assert p0_t1.endswith(render(_say3("P1t0").message))
+    assert p1_t1.endswith(render(_say3("P0t0").message))
+    assert client.message_specs == [A3_SPEC] * 4
+    assert all(system == system_prompt("A3") for system, _ in client.calls)
+    assert policy.step_logs[0].message_out == '{"moi":"P0t0","cible":null,"intention":[]}'
+    assert policy.step_logs[0].unknown_names == ["P0t0"]
+
+
+def test_a3_after_a_fallback_the_teammate_reads_no_message():
+    policy, client = _run_steps("A3", [_fallback(), _say3("K2"), _say3("K3"), _say3("K4")])
+    _, _, (_, p0_t1), (_, p1_t1) = client.calls
+    assert p1_t1.endswith(f"{MESSAGE_HEADER}\n{NO_MESSAGE}")
+    assert p0_t1.endswith(render(_say3("K2").message))
+    assert policy.step_logs[0].message_out is None and policy.step_logs[0].message_tokens == 0
+
+
+def test_a3_requires_two_pursuers():
+    with pytest.raises(ValueError, match="2 poursuivants"):
+        LLMPursuers(CFG.replace(n_pursuers=3), LLM_CFG, client=FakeLLMClient([]), arm="A3")

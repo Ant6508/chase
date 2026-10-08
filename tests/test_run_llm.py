@@ -299,3 +299,64 @@ def test_resuming_an_old_journal_without_mean_confinement_gives_nan(tmp_path, mo
     out = tmp_path / "t.md"
     _run(monkeypatch, "--episodes", "1", "--journal", str(journal), "--out", str(out))
     assert "nan" in out.read_text(encoding="utf-8")
+
+
+# --- bras A3 ------------------------------------------------------------------------------
+
+from pathlib import Path
+
+from chase.llm.client import move_tool
+from chase.llm.message import A3_SPEC
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.parametrize("arm", ["A1bis", "A2", "A2p"])
+def test_played_arms_keep_the_fingerprint_of_their_campaign_journal(arm):
+    """Les journaux des campagnes restent reprenables et comparables : l'empreinte
+    calculée aujourd'hui est celle qu'ils portent."""
+    with open(ROOT / "results" / f"jalon2_{arm.lower()}" / "journal.jsonl", encoding="utf-8") as f:
+        params = json.loads(f.readline())["params"]
+    assert params["arm"] == arm
+    assert run_llm.prompts_fingerprint(arm) == params["prompts"]
+
+
+def test_a3_journal_and_trace_dir_carry_the_a3_prompt_and_tool(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_llm, "run_llm_episode", _fake_episode([]))
+    _run(monkeypatch, "--episodes", "1", "--arm", "A3", "--journal", str(tmp_path / "j.jsonl"),
+         "--trace", str(tmp_path / "t"))
+    first = json.loads((tmp_path / "j.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert first["params"]["arm"] == "A3"
+    assert first["params"]["prompts"] == run_llm.prompts_fingerprint("A3")
+    assert first["params"]["prompts"] != run_llm.prompts_fingerprint("A2")
+    tools = json.loads((tmp_path / "t" / "tools.json").read_text(encoding="utf-8"))
+    assert tools == [move_tool(A3_SPEC)]
+    assert (tmp_path / "t" / "system_prompt.txt").read_text(encoding="utf-8") == system_prompt("A3")
+
+
+_SAID3 = {"moi": "K1", "cible": None, "intention": ["C1"]}
+
+
+class _MinimalClient:
+    def __init__(self):
+        self.specs = []
+
+    def decide(self, system_prompt, user_prompt, message_spec=None):
+        self.specs.append(message_spec)
+        return LLMCallResult(move=Move.STAY, reasoning="r", prompt_tokens=1, completion_tokens=2,
+                             latency_ms=1.0, retries=0, fallback=False, thinking="t",
+                             raw_arguments="{}", message=dict(_SAID3))
+
+
+def test_a3_trace_keeps_the_minimal_messages(tmp_path):
+    cfg = ChaseConfig(max_steps=2)
+    trace = tmp_path / "seed_3.jsonl"
+    client = _MinimalClient()
+    run_llm.run_llm_episode(cfg, LLMConfig(), 3, trace_path=str(trace), client=client, arm="A3")
+    records = [json.loads(line) for line in trace.read_text(encoding="utf-8").splitlines()]
+    sent = render(_SAID3)
+    assert sent == '{"moi":"K1","cible":null,"intention":["C1"]}'
+    assert [r["message_out"] for r in records] == [sent] * 4
+    assert [r["message_in"] for r in records] == [None, None, sent, sent]
+    assert records[0]["message_tokens"] == len(sent)  # tokenizer de test : 1 token par caractère
+    assert client.specs == [A3_SPEC] * 4

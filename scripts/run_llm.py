@@ -23,10 +23,12 @@ le script tourne sur le pod lui-même (voir scripts/pod/).
 positions vraies du poursuivant et de la cible), au fil de l'eau.
 
 --arm choisit le bras : A1 (perception de la campagne A1v3, par défaut), A1bis
-(lieux nommés, sans communication) ou A2 (lieux nommés et message JSON au
-coéquipier). Avec --trace, le prompt système du bras est écrit dans
-DIR/system_prompt.txt, et chaque décision garde le prompt utilisateur complet,
-les messages reçu et émis et les arguments bruts : le jeu de données d'A4.
+(lieux nommés, sans communication), A2 (lieux nommés et message JSON au
+coéquipier), A2p (A2 et consigne d'usage du message) ou A3 (message minimal :
+moi, cible, intention de 3 lieux au plus). Avec --trace, le prompt système du bras
+est écrit dans DIR/system_prompt.txt et l'outil dans DIR/tools.json, et chaque
+décision garde le prompt utilisateur complet, les messages reçu et émis et les
+arguments bruts : le jeu de données d'A4.
 
 --max-tokens N remplace LLMConfig.max_tokens (1600, le budget de la campagne A1v3,
 qui reste reproductible sans l'option). Un appel A1bis ou A2 consomme ~2 900 tokens
@@ -82,6 +84,15 @@ def _trace_record(seed: int, step: int, target: tuple[int, int], log: StepLog) -
             "message_out": log.message_out, "raw_arguments": log.raw_arguments,
             "message_tokens": log.message_tokens, "thinking_tokens": log.thinking_tokens,
             "unknown_names": log.unknown_names}
+
+
+def prompts_fingerprint(arm: str) -> str:
+    """Empreinte du prompt système et de l'outil du bras, inscrite dans les paramètres
+    du journal : modifier l'un ou l'autre entre une pause et sa reprise refuse la
+    reprise. Elle vaut, pour les campagnes jouées, celle de leur journal."""
+    text = system_prompt(arm) + json.dumps(move_tool(MESSAGE_SPECS.get(arm)), sort_keys=True,
+                                           ensure_ascii=False)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
 def run_llm_episode(cfg: ChaseConfig, llm_cfg: LLMConfig, seed: int,
@@ -155,7 +166,8 @@ def main() -> None:
                         help="budget de complétion par appel (défaut : LLMConfig.max_tokens, 1600) ; "
                              "A1bis et A2 : 4000")
     parser.add_argument("--arm", choices=ARMS, default="A1",
-                        help="A1 : perception A1v3 ; A1bis : lieux nommés ; A2 : lieux et message")
+                        help="A1 : perception A1v3 ; A1bis : lieux nommés ; A2, A2p : lieux et "
+                             "message ; A3 : message minimal")
     args = parser.parse_args()
 
     cfg = ChaseConfig().replace(**_parse_overrides(args.set))
@@ -185,10 +197,7 @@ def main() -> None:
         if args.arm != "A1":
             # A1 garde les paramètres des journaux A1v3, qui restent reprenables
             params["arm"] = args.arm
-            # modifier les prompts entre une pause et sa reprise refuse la reprise
-            fingerprint = system_prompt(args.arm) + json.dumps(
-                move_tool(MESSAGE_SPECS.get(args.arm)), sort_keys=True, ensure_ascii=False)
-            params["prompts"] = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:16]
+            params["prompts"] = prompts_fingerprint(args.arm)
         journal = EpisodeJournal(args.journal, params)
         done = {s: r for s, r in journal.completed().items() if s in seeds}
         if done:

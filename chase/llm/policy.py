@@ -27,7 +27,7 @@ from .client import LLMClient, LMStudioClient
 from .config import LLMConfig
 from .logging import REASONING_LOG_CHARS, StepLog
 from .places import Places
-from .prompts import ARMS, CHANNEL_ARMS, build_perception, message_block, system_prompt
+from .prompts import ARMS, CHANNEL_ARMS, MESSAGE_SPECS, build_perception, message_block, system_prompt
 
 
 class LLMPursuers(PursuerPolicy):
@@ -45,6 +45,7 @@ class LLMPursuers(PursuerPolicy):
         self.llm_cfg = llm_cfg
         self.client = client or LMStudioClient(llm_cfg)
         self.system_prompt = system_prompt(arm)
+        self.message_spec = MESSAGE_SPECS.get(arm)  # None hors canal
         self.step_logs: list[StepLog] = []
 
     def reset(self, graph: MazeGraph, rng: np.random.Generator):
@@ -82,7 +83,7 @@ class LLMPursuers(PursuerPolicy):
             received = self._inbox[i] if channel else None
             if channel:
                 user = f"{perception}\n\n{message_block(received)}"
-                result = self.client.decide(self.system_prompt, user, with_message=True)
+                result = self.client.decide(self.system_prompt, user, message_spec=self.message_spec)
             else:
                 # A1 et A1bis appellent le client exactement comme la campagne A1v3
                 user = perception

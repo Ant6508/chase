@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from chase.config import ChaseConfig
 from chase.llm.client import LLMCallResult
-from chase.llm.message import validate
+from chase.llm.message import A2_SPEC, validate
 from chase.llm.prompts import MESSAGE_HEADER, system_prompt
 from chase.moves import Move
 from scripts.situations_a2 import FAMILIES, ask, collect
@@ -28,10 +28,10 @@ class _Fake:
     def __init__(self):
         self.calls = []
 
-    def decide(self, system_prompt, user_prompt, with_message=False):
-        self.calls.append((system_prompt, with_message))
+    def decide(self, system_prompt, user_prompt, message_spec=None):
+        self.calls.append((system_prompt, message_spec))
         message = ({"moi": "K1", "cible": None, "candidates": {"C1": 60, "Z9": 40},
-                    "intention": [], "je_couvre": None} if with_message else None)
+                    "intention": [], "je_couvre": None} if message_spec is not None else None)
         return LLMCallResult(move=Move.NORTH, reasoning="r", prompt_tokens=1, completion_tokens=1,
                              latency_ms=1.0, retries=0, fallback=False, message=message)
 
@@ -43,7 +43,7 @@ def test_ask_compares_both_prompts_to_p2_and_scores_the_emitted_message():
                          "intention": [], "je_couvre": None}}
     fake = _Fake()
     row = ask(fake, s, frozenset({"K1", "C1", "C2"}))
-    assert fake.calls == [(system_prompt("A1bis"), False), (system_prompt("A2"), True)]
+    assert fake.calls == [(system_prompt("A1bis"), None), (system_prompt("A2"), A2_SPEC)]
     assert row["a1bis_move"] == row["a2_move"] == "NORTH"
     assert row["coverage"] == 0.5
     assert row["unknown_names"] == ["Z9"]
@@ -55,7 +55,7 @@ def test_ask_keeps_the_diagnostics_of_both_calls():
     from chase.moves import Move
 
     class Diag:
-        def decide(self, system_prompt, user_prompt, with_message=False):
+        def decide(self, system_prompt, user_prompt, message_spec=None):
             return LLMCallResult(move=Move.STAY, reasoning="repli après échec : x", prompt_tokens=0,
                                  completion_tokens=9, latency_ms=3.0, retries=2, fallback=True,
                                  finish_reason="length", attempt_errors=["e1"])

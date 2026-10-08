@@ -7,6 +7,7 @@ import numpy as np
 
 from chase.graph import MazeGraph
 from chase.llm.client import LLMCallResult
+from chase.llm.message import A2_SPEC
 from chase.llm.prompts import system_prompt
 from chase.moves import Move
 from scripts.situations_a2p import approach_moves, exit_moves, play, summarize
@@ -45,8 +46,8 @@ class _Client:
         self.moves = list(moves)
         self.calls = []
 
-    def decide(self, system_prompt, user_prompt, with_message=False):
-        self.calls.append((system_prompt, user_prompt, with_message))
+    def decide(self, system_prompt, user_prompt, message_spec=None):
+        self.calls.append((system_prompt, user_prompt, message_spec))
         return LLMCallResult(move=self.moves.pop(0), reasoning="r", prompt_tokens=5,
                              completion_tokens=9, latency_ms=1.0, retries=1, fallback=False,
                              thinking="pense", finish_reason="tool_calls",
@@ -59,8 +60,8 @@ def test_play_interleaves_both_arms_on_the_exact_user_prompt():
     rows = play(client, situations, concurrency=1)
     assert [(r["id"], r["arm"], r["move"]) for r in rows] == [
         (0, "A2", "NORTH"), (0, "A2p", "SOUTH"), (1, "A2", "EAST"), (1, "A2p", "WEST")]
-    assert client.calls == [(system_prompt("A2"), "p0", True), (system_prompt("A2p"), "p0", True),
-                            (system_prompt("A2"), "p1", True), (system_prompt("A2p"), "p1", True)]
+    assert client.calls == [(system_prompt("A2"), "p0", A2_SPEC), (system_prompt("A2p"), "p0", A2_SPEC),
+                            (system_prompt("A2"), "p1", A2_SPEC), (system_prompt("A2p"), "p1", A2_SPEC)]
     row = rows[0]
     assert (row["thinking_tokens"], row["retries"], row["cut_attempts"]) == (5, 1, 1)
     assert row["thinking"] == "pense" and row["fallback"] is False

@@ -29,7 +29,7 @@ from chase.env import ChaseEnv
 from chase.llm.ceiling import ProtocolPursuers
 from chase.llm.client import LMStudioClient
 from chase.llm.config import LLMConfig
-from chase.llm.message import render, unknown_names
+from chase.llm.message import A2_SPEC, render, unknown_names
 from chase.llm.places import Places
 from chase.llm.prompts import build_perception, message_block, system_prompt
 from chase.moves import Move
@@ -120,7 +120,7 @@ class _Names:
 
 def ask(client, s: dict, names: frozenset[str]) -> dict:
     a1bis = client.decide(system_prompt("A1bis"), s["a1bis_prompt"])
-    a2 = client.decide(system_prompt("A2"), s["a2_prompt"], with_message=True)
+    a2 = client.decide(system_prompt("A2"), s["a2_prompt"], message_spec=A2_SPEC)
     own = s["own_message"]["candidates"]
     listed = a2.message["candidates"] if a2.message is not None else {}
     # part de la vraie masse de l'émetteur couverte par les lieux qu'il a listés

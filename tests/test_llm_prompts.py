@@ -297,6 +297,7 @@ def test_a1bis_a2_prompts_and_move_tool_are_frozen():
     # du témoin (prompt ou outil), pas un test à mettre à jour.
     import json
     from chase.llm.client import move_tool
+    from chase.llm.message import A2_SPEC
 
     def sha(s):
         return hashlib.sha256(s.encode("utf-8")).hexdigest()
@@ -304,7 +305,7 @@ def test_a1bis_a2_prompts_and_move_tool_are_frozen():
     assert sha(system_prompt("A1bis")) == "96aeaa4058e22fc78e9ba7a6b1bab487a1edbf7480285a7634f0e00bf2a174f5"
     assert sha(system_prompt("A2")) == "a16fafe787f0d4c9ee3df348852496c674c06e14fd990228393d693f4aacbba5"
     assert sha(system_prompt("A2p")) == "9017d402fba502ef3912443359d07dba20a1834ec4018f014612289a9b78b31f"
-    assert sha(json.dumps(move_tool(True), sort_keys=True, ensure_ascii=False)) == "692716f9fdf47ad8a4fa9088f227a4341df0a69aee22fe0b55e237777b38fd68"
+    assert sha(json.dumps(move_tool(A2_SPEC), sort_keys=True, ensure_ascii=False)) == "692716f9fdf47ad8a4fa9088f227a4341df0a69aee22fe0b55e237777b38fd68"
 
 
 # --- bras A3 ------------------------------------------------------------------------------

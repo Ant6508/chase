@@ -196,7 +196,7 @@ _SAID = {"moi": "K1", "cible": None, "candidates": {"C1": 100}, "intention": [],
 
 
 class _TalkingClient:
-    def decide(self, system_prompt, user_prompt, with_message=False):
+    def decide(self, system_prompt, user_prompt, message_spec=None):
         return LLMCallResult(move=Move.STAY, reasoning="r", prompt_tokens=1, completion_tokens=2,
                              latency_ms=1.0, retries=0, fallback=False, thinking="t",
                              raw_arguments="{}", message=dict(_SAID))
@@ -257,7 +257,8 @@ def test_trace_dir_keeps_tools_json_for_a4(tmp_path, monkeypatch):
     monkeypatch.setattr(run_llm, "run_llm_episode", _fake_episode([]))
     _run(monkeypatch, "--episodes", "1", "--pilot", "--arm", "A2", "--trace", str(tmp_path / "t"))
     tools = json.loads((tmp_path / "t" / "tools.json").read_text(encoding="utf-8"))
-    assert tools == [move_tool(True)]
+    from chase.llm.message import A2_SPEC
+    assert tools == [move_tool(A2_SPEC)]
 
 
 def test_journal_params_fingerprint_the_prompts_outside_a1(tmp_path, monkeypatch):

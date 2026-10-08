@@ -37,7 +37,7 @@ from chase.config import ChaseConfig
 from chase.env import ChaseEnv, episode_rngs
 from chase.llm.client import LMStudioClient
 from chase.llm.config import LLMConfig
-from chase.llm.message import count_tokens
+from chase.llm.message import A2_SPEC, count_tokens
 from chase.llm.places import Places
 from chase.moves import Move
 from chase.runner import _percepts
@@ -154,7 +154,7 @@ def play(client, situations: list[dict], concurrency: int = 8, count=count_token
 
     def one(job):
         s, arm = job
-        res = client.decide(system_prompt(arm), s["user_prompt"], with_message=True)
+        res = client.decide(system_prompt(arm), s["user_prompt"], message_spec=A2_SPEC)
         return {"id": s["id"], "arm": arm, "move": res.move.name, "fallback": res.fallback,
                 "retries": res.retries, "finish_reason": res.finish_reason,
                 "cut_attempts": sum("length" in e for e in res.attempt_errors),

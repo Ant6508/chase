@@ -11,7 +11,7 @@ from chase.env import ChaseEnv
 from chase.llm.client import LLMCallResult
 from chase.llm.config import LLMConfig
 from chase.llm.logging import REASONING_LOG_CHARS
-from chase.llm.message import render
+from chase.llm.message import A2_SPEC, render
 from chase.llm.policy import LLMPursuers
 from chase.llm.prompts import MESSAGE_HEADER, NO_MESSAGE, SYSTEM_PROMPT, build_perception, system_prompt
 from chase.moves import Move
@@ -27,12 +27,12 @@ class FakeLLMClient:
     def __init__(self, results: list[LLMCallResult]):
         self._results = list(results)
         self.calls: list[tuple[str, str]] = []
-        self.with_message: list[bool] = []
+        self.message_specs: list = []
 
     def decide(self, system_prompt: str, user_prompt: str,
-               with_message: bool = False) -> LLMCallResult:
+               message_spec=None) -> LLMCallResult:
         self.calls.append((system_prompt, user_prompt))
-        self.with_message.append(with_message)
+        self.message_specs.append(message_spec)
         return self._results.pop(0)
 
 
@@ -229,7 +229,7 @@ def test_a2_message_is_read_by_the_other_pursuer_at_the_next_step_only():
     assert p1_t0.endswith(f"{MESSAGE_HEADER}\n{NO_MESSAGE}")  # pas le message de P0 du même pas
     assert p0_t1.endswith(render(_say("P1t0").message))
     assert p1_t1.endswith(render(_say("P0t0").message))
-    assert client.with_message == [True] * 4
+    assert client.message_specs == [A2_SPEC] * 4
     assert all(system == system_prompt("A2") for system, _ in client.calls)
 
 
@@ -309,7 +309,7 @@ def test_a1bis_names_places_but_has_no_message():
     policy, client = _run_steps("A1bis", [_ok(Move.STAY)] * 4)
     assert all(user.startswith("Tu es en ") for _, user in client.calls)
     assert all(MESSAGE_HEADER not in user for _, user in client.calls)
-    assert client.with_message == [False] * 4
+    assert client.message_specs == [None] * 4
     assert all(system == system_prompt("A1bis") for system, _ in client.calls)
     assert all(log.message_out is None and log.message_tokens == 0 for log in policy.step_logs)
 
@@ -336,7 +336,7 @@ def test_a2p_uses_the_channel_with_its_own_system_prompt():
     _, _, (_, p0_t1), (_, p1_t1) = client.calls
     assert p0_t1.endswith(render(_say("P1t0").message))
     assert p1_t1.endswith(render(_say("P0t0").message))
-    assert client.with_message == [True] * 4
+    assert client.message_specs == [A2_SPEC] * 4
     assert all(system == system_prompt("A2p") for system, _ in client.calls)
 
 

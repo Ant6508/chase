@@ -16,7 +16,7 @@ from openai import OpenAI
 
 from ..moves import Move
 from .config import LLMConfig
-from .message import MESSAGE_SCHEMA, validate
+from .message import MessageSpec, validate
 
 _MOVE_TOOL = {
     "type": "function",
@@ -41,15 +41,16 @@ _MOVE_TOOL = {
 }
 
 
-def move_tool(with_message: bool) -> dict:
-    """L'outil `move`, avec le paramètre `message` obligatoire en A2 seulement."""
-    if not with_message:
+def move_tool(spec: MessageSpec | None) -> dict:
+    """L'outil `move` ; avec la spec d'un bras à canal, le paramètre `message`,
+    obligatoire, porte le schéma de cette spec (A2 et A2' : `A2_SPEC`, A3 : `A3_SPEC`)."""
+    if spec is None:
         return _MOVE_TOOL
     fn = _MOVE_TOOL["function"]
     params = fn["parameters"]
     return {"type": "function", "function": {**fn, "parameters": {
         **params,
-        "properties": {**params["properties"], "message": MESSAGE_SCHEMA},
+        "properties": {**params["properties"], "message": spec.schema},
         "required": [*params["required"], "message"],
     }}}
 
@@ -64,7 +65,7 @@ class LLMCallResult:
     retries: int
     fallback: bool
     thinking: str = ""  # chaîne de pensée émise avant l'appel d'outil (`reasoning_content`)
-    message: dict | None = None  # message validé (A2) ; None hors canal ou en repli
+    message: dict | None = None  # message validé (bras à canal) ; None hors canal ou en repli
     raw_arguments: str = ""      # arguments bruts de l'appel d'outil (A4 y situera le message)
     finish_reason: str = ""      # raison d'arrêt de la réponse (« length » : réponse coupée)
     # raison de chaque tentative échouée, dans l'ordre ; en repli, elles y sont toutes
@@ -73,7 +74,7 @@ class LLMCallResult:
 
 class LLMClient(Protocol):
     def decide(self, system_prompt: str, user_prompt: str,
-               with_message: bool = False) -> LLMCallResult: ...
+               message_spec: MessageSpec | None = None) -> LLMCallResult: ...
 
 
 def _clean(text: str) -> str:
@@ -103,7 +104,7 @@ class LMStudioClient:
         self._client = client or OpenAI(base_url=cfg.base_url, api_key="lm-studio")
 
     def decide(self, system_prompt: str, user_prompt: str,
-               with_message: bool = False) -> LLMCallResult:
+               message_spec: MessageSpec | None = None) -> LLMCallResult:
         errors: list[str] = []
         # pensée, arguments bruts et finish_reason de la dernière réponse reçue, gardés
         # dans le repli pour le diagnostic
@@ -120,7 +121,7 @@ class LMStudioClient:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
-                    tools=[move_tool(with_message)],
+                    tools=[move_tool(message_spec)],
                     tool_choice="required",
                 )
             except Exception as exc:
@@ -142,7 +143,7 @@ class LMStudioClient:
                 direction, reasoning, args, raw = parsed
                 last_raw = raw
                 message = None
-                if with_message:
+                if message_spec is not None:
                     message = args.get("message")
                     if isinstance(message, str):
                         # le modèle écrit parfois le message comme une chaîne JSON : simple
@@ -152,7 +153,7 @@ class LMStudioClient:
                             message = json.loads(message)
                         except json.JSONDecodeError:
                             pass
-                    problem = validate(message)
+                    problem = validate(message, message_spec)
                     if problem is not None:
                         errors.append(f"message invalide : {problem}")
                         continue

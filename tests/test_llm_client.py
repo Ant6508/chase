@@ -123,7 +123,7 @@ def test_decide_without_chain_of_thought_leaves_thinking_empty():
     assert result.thinking == ""
 
 
-from chase.llm.message import MESSAGE_SCHEMA
+from chase.llm.message import A2_SPEC, MESSAGE_SCHEMA
 
 _MSG = {"moi": "C2a.3", "cible": None, "candidates": {"C7a": 7}, "intention": ["K1"],
         "je_couvre": None}
@@ -141,7 +141,7 @@ def test_message_parameter_is_declared_only_for_the_channel():
     fake = _FakeOpenAI([_tool_call_response("STAY"), _args_response(with_msg)])
     client = LMStudioClient(CFG, client=fake)
     client.decide("système", "perception")
-    client.decide("système", "perception", with_message=True)
+    client.decide("système", "perception", message_spec=A2_SPEC)
     without, with_ = (c["tools"][0]["function"]["parameters"] for c in fake.chat.completions.calls)
     assert "message" not in without["properties"] and "message" not in without["required"]
     assert with_["properties"]["message"] == MESSAGE_SCHEMA
@@ -151,7 +151,7 @@ def test_message_parameter_is_declared_only_for_the_channel():
 def test_valid_message_and_raw_arguments_are_returned():
     args = {"direction": "EAST", "reasoning": "r", "message": _MSG}
     fake = _FakeOpenAI([_args_response(args)])
-    result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", message_spec=A2_SPEC)
     assert result.move == Move.EAST
     assert result.message == _MSG
     assert result.raw_arguments == json.dumps(args)
@@ -161,14 +161,14 @@ def test_invalid_message_is_retried_then_accepted():
     bad = {"direction": "EAST", "reasoning": "r", "message": {**_MSG, "intention": "K1"}}
     good = {"direction": "WEST", "reasoning": "r", "message": _MSG}
     fake = _FakeOpenAI([_args_response(bad), _args_response(good)])
-    result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", message_spec=A2_SPEC)
     assert (result.move, result.retries, result.message) == (Move.WEST, 1, _MSG)
 
 
 def test_missing_message_exhausts_retries_and_falls_back_without_message():
     no_msg = {"direction": "EAST", "reasoning": "r"}
     fake = _FakeOpenAI([_args_response(no_msg)] * 3)
-    result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", message_spec=A2_SPEC)
     assert result.fallback is True and result.move == Move.STAY and result.message is None
     assert "message invalide" in result.reasoning
 
@@ -191,8 +191,8 @@ def _finish(response, reason):
 
 
 def test_move_tool_is_public_and_keeps_the_plain_tool_outside_the_channel():
-    assert move_tool(False) is _MOVE_TOOL
-    assert move_tool(True)["function"]["parameters"]["properties"]["message"] == MESSAGE_SCHEMA
+    assert move_tool(None) is _MOVE_TOOL
+    assert move_tool(A2_SPEC)["function"]["parameters"]["properties"]["message"] == MESSAGE_SCHEMA
 
 
 def test_finish_reason_is_kept_on_success():
@@ -215,7 +215,7 @@ def test_fallback_keeps_all_errors_and_the_last_answer_received():
     resp = _finish(_args_response(bad), "stop")
     resp.choices[0].message.reasoning_content = "je réfléchis"
     fake = _FakeOpenAI([_no_tool_call_response(), resp, RuntimeError("boum")])
-    result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", message_spec=A2_SPEC)
     assert result.fallback and result.move == Move.STAY and result.message is None
     assert len(result.attempt_errors) == 3
     assert result.thinking == "je réfléchis"
@@ -228,7 +228,7 @@ def test_exception_in_validation_becomes_a_failed_attempt(monkeypatch):
 
     calls = []
 
-    def boom(obj):
+    def boom(obj, spec=None):
         calls.append(obj)
         if len(calls) == 1:
             raise OverflowError("int too large")
@@ -237,7 +237,7 @@ def test_exception_in_validation_becomes_a_failed_attempt(monkeypatch):
     monkeypatch.setattr(client_mod, "validate", boom)
     args = {"direction": "EAST", "reasoning": "r", "message": _MSG}
     fake = _FakeOpenAI([_args_response(args), _args_response(args)])
-    result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", message_spec=A2_SPEC)
     assert result.retries == 1 and not result.fallback
     assert result.attempt_errors[0].startswith("réponse illisible : OverflowError(")
 
@@ -247,7 +247,7 @@ def test_thinking_and_reasoning_are_made_encodable_but_the_message_is_not_touche
     resp = _args_response(args)
     resp.choices[0].message.reasoning_content = "pens\ud83d\u00e9e"
     fake = _FakeOpenAI([resp])
-    result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", message_spec=A2_SPEC)
     result.reasoning.encode("utf-8")
     result.thinking.encode("utf-8")
     assert result.thinking.endswith("\u00e9e")
@@ -260,7 +260,7 @@ def test_message_written_as_a_json_string_is_decoded_not_retried():
     sans relance ; le contenu n'est pas modifié."""
     args = {"direction": "EAST", "reasoning": "r", "message": json.dumps(_MSG)}
     fake = _FakeOpenAI([_args_response(args)])
-    result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", message_spec=A2_SPEC)
     assert (result.message, result.retries, result.fallback) == (_MSG, 0, False)
 
 
@@ -268,5 +268,46 @@ def test_a_string_that_is_not_a_json_object_is_still_rejected():
     for bad in ("n'importe quoi", json.dumps(["C1"])):
         args = {"direction": "EAST", "reasoning": "r", "message": bad}
         fake = _FakeOpenAI([_args_response(args)] * 3)
-        result = LMStudioClient(CFG, client=fake).decide("s", "p", with_message=True)
+        result = LMStudioClient(CFG, client=fake).decide("s", "p", message_spec=A2_SPEC)
         assert result.fallback is True and result.message is None
+
+
+# --- bras A3 ------------------------------------------------------------------------------
+
+from chase.llm.message import A3_SPEC
+
+_MSG3 = {"moi": "C2a.3", "cible": None, "intention": ["K1", "C4a"]}
+
+
+def test_a3_tool_declares_the_three_fields_the_bound_and_no_extra_field():
+    message = move_tool(A3_SPEC)["function"]["parameters"]["properties"]["message"]
+    assert message is A3_SPEC.schema
+    assert message["required"] == ["moi", "cible", "intention"]
+    assert message["properties"]["intention"]["maxItems"] == 3
+    assert message["additionalProperties"] is False
+
+
+def test_a3_message_over_the_bound_is_retried_then_falls_back():
+    long = {"direction": "EAST", "reasoning": "r",
+            "message": {**_MSG3, "intention": ["K1", "C4a", "C4b", "K3"]}}
+    fake = _FakeOpenAI([_args_response(long)] * 3)
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", message_spec=A3_SPEC)
+    assert result.fallback and result.move == Move.STAY and result.message is None
+    assert result.attempt_errors == ["message invalide : intention dépasse 3 lieux"] * 3
+
+
+def test_a3_message_with_an_a2_field_is_retried_then_accepted():
+    extra = {"direction": "EAST", "reasoning": "r", "message": {**_MSG3, "candidates": {"C7a": 7}}}
+    good = {"direction": "WEST", "reasoning": "r", "message": _MSG3}
+    fake = _FakeOpenAI([_args_response(extra), _args_response(good)])
+    result = LMStudioClient(CFG, client=fake).decide("s", "p", message_spec=A3_SPEC)
+    assert (result.move, result.retries, result.message) == (Move.WEST, 1, _MSG3)
+    assert result.attempt_errors == ["message invalide : champ(s) en trop : 'candidates'"]
+
+
+def test_a3_tool_sent_to_the_server_carries_the_a3_schema():
+    fake = _FakeOpenAI([_args_response({"direction": "EAST", "reasoning": "r", "message": _MSG3})])
+    LMStudioClient(CFG, client=fake).decide("s", "p", message_spec=A3_SPEC)
+    sent = fake.chat.completions.calls[0]["tools"][0]["function"]["parameters"]
+    assert sent["properties"]["message"] is A3_SPEC.schema
+    assert sent["required"] == ["direction", "reasoning", "message"]

@@ -69,15 +69,16 @@ def test_replay_in_a2_uses_the_arm_prompt_the_user_prompt_and_the_channel():
     from chase.llm.prompts import system_prompt
 
     class Chan(_Client):
-        def decide(self, system_prompt, user_prompt, with_message=False):
-            self.with_message = with_message
+        def decide(self, system_prompt, user_prompt, message_spec=None):
+            self.message_spec = message_spec
             return super().decide(system_prompt, user_prompt)
 
     rec = {**_rec(4, 7), "user_prompt": "perception\n\nmessage"}
     client = Chan(Move.EAST, "t")
     replay(client, "g", rec, arm="A2")
     assert client.prompts == [(system_prompt("A2"), "perception\n\nmessage")]
-    assert client.with_message is True
+    from chase.llm.message import A2_SPEC
+    assert client.message_spec is A2_SPEC
     client = _Client(Move.EAST, "t")
     replay(client, "g", rec)  # défaut : A1, perception seule, appel sans argument en plus
     assert client.prompts == [(SYSTEM_PROMPT, "perception\n\nmessage")]

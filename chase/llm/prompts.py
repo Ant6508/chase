@@ -27,6 +27,7 @@ import numpy as np
 
 from ..graph import MazeGraph
 from ..moves import MOVE_DELTAS, Move
+from .message import A2_SPEC, A3_SPEC, MessageSpec
 from .places import Places
 
 SYSTEM_PROMPT = """Tu es un poursuivant dans un labyrinthe, en coopération avec \
@@ -63,8 +64,10 @@ justification brève."""
 # ci-dessus reste celui de la campagne A1v3, inchangé. A2p (A2') : A2 plus une consigne
 # explicite d'usage du message (même spec, § Points ouverts), après la campagne A2 qui
 # lisait le message sans écarter les lieux vus vides (results/jalon2_a2.md).
-ARMS = ("A1", "A1bis", "A2", "A2p")
-CHANNEL_ARMS = ("A2", "A2p")
+# A3 : canal minimal sous budget borné (docs/superpowers/specs/2026-10-08-jalon2-a3-design.md).
+ARMS = ("A1", "A1bis", "A2", "A2p", "A3")
+CHANNEL_ARMS = ("A2", "A2p", "A3")
+MESSAGE_SPECS: dict[str, MessageSpec] = {"A2": A2_SPEC, "A2p": A2_SPEC, "A3": A3_SPEC}
 
 _INTRO_A1 = ("en coopération avec un coéquipier que tu ne peux PAS contacter : tu ne "
              "connais ni sa position ni ses intentions.")
@@ -103,6 +106,18 @@ précédent : la cible n'y est presque sûrement pas.
 Exemple : {"moi":"C2a.3","cible":null,"candidates":{"C7a":7,"C9":6,"K3":2},\
 "intention":["K1","C4a"],"je_couvre":null}"""
 
+# A3 : les phrases d'A2 sur `moi` et `cible` mot pour mot ; plus de `candidates`, de
+# `je_couvre`, ni de la phrase sur les lieux vus vides.
+CHANNEL_PARAGRAPH_A3 = """À chaque pas, tu écris un message à ton coéquipier dans le champ \
+`message` de l'outil `move`. Il le lira au pas suivant ; de même, le message qu'il t'a \
+écrit au pas précédent figure à la fin de ta perception. Ta pensée et ta justification \
+restent privées : seul le message lui parvient. Le message a trois champs, tous \
+obligatoires, et aucun autre :
+- `moi` : ta case, pour vous répartir la recherche et préparer une prise en tenaille ;
+- `cible` : la case de la cible si tu la vois, sinon null ;
+- `intention` : les prochains lieux que tu comptes traverser, dans l'ordre, trois au plus.
+Exemple : {"moi":"C2a.3","cible":null,"intention":["K1","C4a"]}"""
+
 USAGE_PARAGRAPH = """Avant de choisir ta direction, tiens compte du message de ton \
 coéquipier, s'il y en a un. Écarte les lieux qu'il a vus vides, c'est-à-dire absents de ses \
 `candidates` : la cible n'y est presque sûrement pas, même si ta perception leur donne \
@@ -119,7 +134,8 @@ NO_MESSAGE = "Aucun message reçu."
 def system_prompt(arm: str) -> str:
     """A1 : le prompt de la campagne A1v3. A1bis : le même, plus les lieux. A2 : les
     lieux et le canal de message, avec la phrase sur le coéquipier remplacée. A2p : celui
-    d'A2, plus la consigne d'usage du message juste avant la consigne de réponse."""
+    d'A2, plus la consigne d'usage du message juste avant la consigne de réponse. A3 :
+    celui d'A2, avec le paragraphe du canal à trois champs."""
     if arm not in ARMS:
         raise ValueError(f"bras inconnu : {arm}")
     if arm == "A1":
@@ -129,7 +145,8 @@ def system_prompt(arm: str) -> str:
     body = SYSTEM_PROMPT.removesuffix(_ANSWER_A1) + PLACES_PARAGRAPH + "\n\n"
     if arm == "A1bis":
         return body + _ANSWER_A1
-    body = body.replace(_INTRO_A1, _INTRO_A2) + CHANNEL_PARAGRAPH + "\n\n"
+    channel = CHANNEL_PARAGRAPH_A3 if arm == "A3" else CHANNEL_PARAGRAPH
+    body = body.replace(_INTRO_A1, _INTRO_A2) + channel + "\n\n"
     if arm == "A2p":
         body += USAGE_PARAGRAPH + "\n\n"
     return body + _ANSWER_A2

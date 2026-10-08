@@ -347,7 +347,7 @@ def test_a2_requires_two_pursuers():
 
 def test_unknown_arm_is_refused():
     with pytest.raises(ValueError, match="bras inconnu"):
-        LLMPursuers(CFG, LLM_CFG, client=FakeLLMClient([]), arm="A3")
+        LLMPursuers(CFG, LLM_CFG, client=FakeLLMClient([]), arm="A9")
 
 
 def test_step_log_copies_finish_reason_and_attempt_errors():

@@ -274,7 +274,7 @@ def test_a2p_is_a2_plus_the_usage_instruction_before_the_answer():
     assert a2p.index(CHANNEL_PARAGRAPH) < a2p.index(USAGE_PARAGRAPH)
     assert a2p.endswith("une justification brève et ton message.")
     assert "vus vides" in USAGE_PARAGRAPH and "rejoins-la" in USAGE_PARAGRAPH
-    assert CHANNEL_ARMS == ("A2", "A2p")
+    assert CHANNEL_ARMS == ("A2", "A2p", "A3")
 
 
 def test_channel_example_is_a_valid_message():
@@ -284,7 +284,7 @@ def test_channel_example_is_a_valid_message():
 
 def test_unknown_arm_is_refused():
     with pytest.raises(ValueError, match="bras inconnu"):
-        system_prompt("A3")
+        system_prompt("A9")
 
 
 def test_message_block_shows_the_message_or_its_absence():
@@ -303,4 +303,41 @@ def test_a1bis_a2_prompts_and_move_tool_are_frozen():
 
     assert sha(system_prompt("A1bis")) == "96aeaa4058e22fc78e9ba7a6b1bab487a1edbf7480285a7634f0e00bf2a174f5"
     assert sha(system_prompt("A2")) == "a16fafe787f0d4c9ee3df348852496c674c06e14fd990228393d693f4aacbba5"
+    assert sha(system_prompt("A2p")) == "9017d402fba502ef3912443359d07dba20a1834ec4018f014612289a9b78b31f"
     assert sha(json.dumps(move_tool(True), sort_keys=True, ensure_ascii=False)) == "692716f9fdf47ad8a4fa9088f227a4341df0a69aee22fe0b55e237777b38fd68"
+
+
+# --- bras A3 ------------------------------------------------------------------------------
+
+from chase.llm.message import A2_SPEC, A3_SPEC
+from chase.llm.prompts import CHANNEL_PARAGRAPH_A3, MESSAGE_SPECS
+
+
+def test_a3_is_a2_with_the_three_field_channel_paragraph():
+    a2, a3 = system_prompt("A2"), system_prompt("A3")
+    assert a3 == a2.replace(CHANNEL_PARAGRAPH, CHANNEL_PARAGRAPH_A3)
+    assert "`candidates`" not in a3 and "`je_couvre`" not in a3  # les champs, pas le mot
+    assert USAGE_PARAGRAPH not in a3
+    assert a3.endswith("une justification brève et ton message.")
+
+
+def test_a3_channel_paragraph_keeps_the_a2_sentences_word_for_word():
+    intro = CHANNEL_PARAGRAPH.split("cinq champs")[0]
+    assert CHANNEL_PARAGRAPH_A3.startswith(intro + "trois champs, tous obligatoires, et aucun autre :")
+    a3_lines = CHANNEL_PARAGRAPH_A3.splitlines()
+    for field in ("- `moi` :", "- `cible` :"):
+        line = next(l for l in CHANNEL_PARAGRAPH.splitlines() if l.startswith(field))
+        assert line in a3_lines
+    assert ("- `intention` : les prochains lieux que tu comptes traverser, dans l'ordre, "
+            "trois au plus.") in a3_lines
+    assert "vu vide" not in CHANNEL_PARAGRAPH_A3
+
+
+def test_a3_channel_example_is_a_valid_a3_message():
+    example = json.loads(CHANNEL_PARAGRAPH_A3.split("Exemple : ", 1)[1])
+    assert validate(example, A3_SPEC) is None
+
+
+def test_each_channel_arm_has_its_message_spec():
+    assert MESSAGE_SPECS == {"A2": A2_SPEC, "A2p": A2_SPEC, "A3": A3_SPEC}
+    assert set(MESSAGE_SPECS) == set(CHANNEL_ARMS)

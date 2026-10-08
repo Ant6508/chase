@@ -1,0 +1,39 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+seed 1: capturé=True pas=19 temps=3525.9s latence_moy=92383ms replis=0 msg_moy=23
+seed 0: capturé=True pas=21 temps=4479.5s latence_moy=96681ms replis=0 msg_moy=23
+seed 2: capturé=True pas=27 temps=4545.0s latence_moy=83881ms replis=0 msg_moy=23
+seed 4: capturé=True pas=31 temps=5101.0s latence_moy=82025ms replis=0 msg_moy=22
+seed 6: capturé=True pas=38 temps=6157.5s latence_moy=80815ms replis=0 msg_moy=23
+seed 5: capturé=False pas=60 temps=7340.2s latence_moy=61036ms replis=0 msg_moy=24
+seed 3: capturé=True pas=47 temps=7677.6s latence_moy=79238ms replis=0 msg_moy=22
+seed 7: capturé=True pas=50 temps=7951.3s latence_moy=79353ms replis=0 msg_moy=21
+Bras A3. Seeds 0..7 (8 épisodes), T = 60.
+
+| Seed | Capture | Pas | Confinement à T | Confinement moyen | Temps mural (s) | Latence moy. (ms) | Replis | Positions/message |
+|---|---|---|---|---|---|---|---|---|
+| 0 | oui | 21 | 0.000 | 0.158 | 4479.5 | 96681 | 0 | 23 |
+| 1 | oui | 19 | 0.000 | 0.148 | 3525.9 | 92383 | 0 | 23 |
+| 2 | oui | 27 | 0.000 | 0.037 | 4545.0 | 83881 | 0 | 23 |
+| 3 | oui | 47 | 0.000 | 0.333 | 7677.6 | 79238 | 0 | 22 |
+| 4 | oui | 31 | 0.000 | 0.055 | 5101.0 | 82025 | 0 | 22 |
+| 5 | non | 60 | 0.010 | 0.181 | 7340.2 | 61036 | 0 | 24 |
+| 6 | oui | 38 | 0.000 | 0.164 | 6157.5 | 80815 | 0 | 23 |
+| 7 | oui | 50 | 0.000 | 0.344 | 7951.3 | 79353 | 0 | 21 |
+
+Paramètres du jeu :
+
+```json
+{
+  "size": 15,
+  "n_loops": 1,
+  "min_loop_len": 6,
+  "n_pursuers": 2,
+  "view_size": 5,
+  "min_spawn_dist": 6,
+  "max_steps": 60,
+  "target_memory": 6,
+  "target_cycle_bias": 0.5,
+  "comm_delay": 1,
+  "track_threshold": 8
+}
+```

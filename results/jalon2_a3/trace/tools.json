@@ -1,0 +1,61 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "move",
+      "description": "Choisit le déplacement du poursuivant pour ce pas.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "STAY",
+              "NORTH",
+              "SOUTH",
+              "EAST",
+              "WEST"
+            ]
+          },
+          "reasoning": {
+            "type": "string",
+            "description": "Justification brève du choix, une ou deux phrases."
+          },
+          "message": {
+            "type": "object",
+            "description": "Message pour ton coéquipier, qu'il lira au pas suivant.",
+            "properties": {
+              "moi": {
+                "type": "string"
+              },
+              "cible": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "intention": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 3
+              }
+            },
+            "required": [
+              "moi",
+              "cible",
+              "intention"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "direction",
+          "reasoning",
+          "message"
+        ]
+      }
+    }
+  }
+]

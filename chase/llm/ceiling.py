@@ -1,12 +1,14 @@
-"""Plafond mécanique du protocole A2 (P2), sans LLM.
+"""Plafonds mécaniques des protocoles A2 (P2) et A3 (P3), sans LLM.
 
-P2 prend les décisions de R2 (répartition de Voronoï en exploration, tenaille
-quand la cible est localisée), mais il ne connaît de son coéquipier que ce que
-transporte le message A2 du pas précédent, au grain des lieux :
+P2 et P3 prennent les décisions de R2 (répartition de Voronoï en exploration,
+tenaille quand la cible est localisée), mais ne connaissent de leur coéquipier que ce
+que transporte le message du pas précédent, au grain des lieux :
 - sa position : la case `moi` ;
-- sa croyance : l'union des cases de ses lieux `candidates`, ou la case `cible`
-  quand il la voyait, propagée d'un pas puis intersectée avec la croyance
-  individuelle du récepteur.
+- la cible : la case `cible` quand il la voyait, propagée d'un pas puis intersectée
+  avec la croyance individuelle du récepteur ;
+- en P2 seulement, sa croyance quand il ne voyait pas la cible : l'union des cases de
+  ses lieux `candidates`, propagée et intersectée de même. Sans `candidates` (P3), il
+  n'y a rien à fusionner : le récepteur décide avec sa propre croyance.
 
 Il n'y a pas d'accumulation. Chaque poursuivant garde sa croyance individuelle
 (R1) et ne refait l'intersection que pour décider, comme un LLM sans mémoire qui
@@ -14,7 +16,8 @@ relit le message à chaque pas. Sans message (premier pas), il décide comme R1.
 
 Si P2 perd plus de la moitié de l'écart de captures R1 -> R2, c'est le protocole
 qui est en cause, pas le LLM (docs/superpowers/specs/2026-09-29-jalon2-a2-design.md,
-§ Validation, étape 1).
+§ Validation, étape 1). P3 n'a pas de porte : il mesure ce que vaut le message
+minimal pour un décideur parfait (docs/superpowers/specs/2026-10-08-jalon2-a3-design.md).
 """
 
 from __future__ import annotations
@@ -26,17 +29,20 @@ from ..config import ChaseConfig
 from ..graph import MazeGraph
 from ..moves import Move
 from ..policies import GreedyPursuers, Percept
+from .message import A2_SPEC, MessageSpec
 from .places import Places
 
 INTENTION_STEPS = 5  # cases du chemin prévu résumées dans `intention`
+PROTOCOL_NAMES = {"A2": "P2", "A3": "P3"}  # plafond mécanique de chaque spec de message
 
 
 def write_message(g: MazeGraph, places: Places, pos: tuple[int, int], belief: np.ndarray,
                   prob: np.ndarray, target_seen: tuple[int, int] | None,
-                  path_ahead: list[int]) -> dict:
-    """Message A2 rédigé mécaniquement depuis la croyance individuelle d'un
-    poursuivant : tous les lieux qui contiennent une candidate, avec leur part de
-    probabilité arrondie, et les lieux successifs de son chemin prévu."""
+                  path_ahead: list[int], spec: MessageSpec = A2_SPEC) -> dict:
+    """Message rédigé mécaniquement depuis la croyance individuelle d'un poursuivant,
+    réduit aux champs de la spec. A2 : tous les lieux qui contiennent une candidate,
+    avec leur part de probabilité arrondie, et les lieux successifs de son chemin
+    prévu. A3 : `moi`, `cible` et les premiers lieux de ce chemin, dans la borne."""
     candidates = {}
     for place in places.places:
         cells = np.array(place.cells, dtype=np.int64)
@@ -50,18 +56,22 @@ def write_message(g: MazeGraph, places: Places, pos: tuple[int, int], belief: np
         name = places.places[places.place_of[c]].name
         if not intention or intention[-1] != name:
             intention.append(name)
-    return {"moi": places.cell_name[g.index[pos]],
+    if spec.max_intention is not None:
+        intention = intention[:spec.max_intention]
+    full = {"moi": places.cell_name[g.index[pos]],
             "cible": None if target_seen is None else places.cell_name[g.index[target_seen]],
             "candidates": candidates, "intention": intention, "je_couvre": None}
+    return {f: full[f] for f in spec.fields}
 
 
 class ProtocolPursuers(GreedyPursuers):
 
-    def __init__(self, cfg: ChaseConfig):
+    def __init__(self, cfg: ChaseConfig, spec: MessageSpec = A2_SPEC):
         if cfg.n_pursuers != 2:
             raise ValueError("P2 suppose 2 poursuivants : chaque message va à l'autre")
         super().__init__(cfg, fused=True)
-        self.name = "P2"
+        self.spec = spec
+        self.name = PROTOCOL_NAMES[spec.name]
 
     def reset(self, graph, rng):
         super().reset(graph, rng)
@@ -85,21 +95,25 @@ class ProtocolPursuers(GreedyPursuers):
         self._beliefs, self._probs = [], []
         for i in range(len(percepts)):
             belief, prob = self._own[i], self._own_p[i]
-            if self._inbox[i] is not None:
-                belief = belief & propagate(self._support(self._inbox[i]), free)
+            support = None if self._inbox[i] is None else self._support(self._inbox[i])
+            if support is not None:
+                belief = belief & propagate(support, free)
                 prob = np.where(belief, prob, 0.0)
                 total = prob.sum()
                 prob = prob / total if total > 0 else belief / belief.sum()
             self._beliefs.append(belief)
             self._probs.append(prob)
 
-    def _support(self, message: dict) -> np.ndarray:
-        """Cases où l'auteur du message situait la cible quand il l'a écrit."""
+    def _support(self, message: dict) -> np.ndarray | None:
+        """Cases où l'auteur du message situait la cible quand il l'a écrit ; None si le
+        message n'en dit rien (A3 sans `cible` : il n'a pas de `candidates`)."""
         places = self.places
         if message["cible"] is not None:
             cells = [places.cell_by_name[message["cible"]]]
-        else:
+        elif "candidates" in message:
             cells = [c for name in message["candidates"] for c in places.by_name[name].cells]
+        else:
+            return None
         out = np.zeros(self.g.free.shape, dtype=bool)
         for c in cells:
             out[self.g.cells[c]] = True
@@ -132,7 +146,7 @@ class ProtocolPursuers(GreedyPursuers):
             here = int(self.g.index[p.pos])
             outbox[1 - i] = write_message(self.g, self.places, p.pos, self._own[i],
                                           self._own_p[i], p.target_seen,
-                                          self._path_ahead(i, here, moves[i]))
+                                          self._path_ahead(i, here, moves[i]), spec=self.spec)
         self.sent = [outbox[1], outbox[0]]
         self._inbox = outbox
         return moves

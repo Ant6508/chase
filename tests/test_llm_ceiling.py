@@ -9,7 +9,7 @@ from chase.belief import propagate
 from chase.config import ChaseConfig
 from chase.env import ChaseEnv
 from chase.llm.ceiling import ProtocolPursuers, write_message
-from chase.llm.message import unknown_names, validate
+from chase.llm.message import A2_SPEC, unknown_names, validate
 from chase.llm.places import Places
 from chase.moves import Move
 from chase.policies import GreedyPursuers, Percept
@@ -254,3 +254,82 @@ def test_intention_first_cell_matches_the_move_played(seed):
 
     run_episode(PROFILE, ProtocolPursuers(PROFILE), seed, on_step=check)
     assert state["checked"]
+
+
+# --- P3 : décisions de R2, message A3 ---------------------------------------------------
+
+from chase.llm.message import A3_SPEC
+
+
+def test_a3_message_keeps_moi_cible_and_the_first_three_places_of_the_path():
+    _, g, places = _map(1)
+    first, last = places.places[0], places.places[-1]
+    belief = np.zeros(g.free.shape, dtype=bool)
+    belief[g.cells[last.cells[0]]] = True
+    path = [p.cells[0] for p in places.places[:5]]
+    m = write_message(g, places, g.cells[first.cells[0]], belief, belief / 1.0, None, path,
+                      spec=A3_SPEC)
+    assert m == {"moi": first.name, "cible": None,
+                 "intention": [p.name for p in places.places[:3]]}
+    assert validate(m, A3_SPEC) is None
+
+
+def test_a2_message_is_unchanged_by_the_spec_argument():
+    _, g, places = _map(1)
+    belief = np.zeros(g.free.shape, dtype=bool)
+    belief[g.cells[places.places[-1].cells[0]]] = True
+    pos = g.cells[places.places[0].cells[0]]
+    assert (write_message(g, places, pos, belief, belief / 1.0, None, [])
+            == write_message(g, places, pos, belief, belief / 1.0, None, [], spec=A2_SPEC))
+
+
+def test_protocol_name_follows_the_spec():
+    assert ProtocolPursuers(PROFILE).name == "P2"
+    assert ProtocolPursuers(PROFILE, spec=A3_SPEC).name == "P3"
+
+
+def test_p3_messages_are_valid_a3_messages_with_map_names():
+    seen = []
+
+    def check(env, policy):
+        for m in policy.sent:
+            if m is not None:
+                seen.append(m)
+                assert validate(m, A3_SPEC) is None
+                assert unknown_names(m, policy.places) == []
+
+    run_episode(PROFILE, ProtocolPursuers(PROFILE, spec=A3_SPEC), 2, on_step=check)
+    assert seen
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_p3_beliefs_contain_the_target_and_shrink_only_on_a_received_target(seed):
+    def check(env, policy):
+        if env.captured:
+            return
+        t = env.target_pos
+        for i, (own, decided) in enumerate(zip(policy._own, policy.beliefs())):
+            assert own[t] and decided[t]
+            m = policy._inbox[i]
+            if m is None or m["cible"] is None:
+                assert (decided == own).all()
+            else:
+                assert not (decided & ~own).any()
+
+    run_episode(PROFILE, ProtocolPursuers(PROFILE, spec=A3_SPEC), seed, on_step=check)
+
+
+def test_p3_uses_a_received_target():
+    shrunk = {"seen": False}
+
+    def check(env, policy):
+        if env.captured:
+            return
+        for i in range(PROFILE.n_pursuers):
+            m = policy._inbox[i]
+            if m is not None and m["cible"] is not None:
+                shrunk["seen"] |= bool(policy.beliefs()[i].sum() < policy._own[i].sum())
+
+    for seed in range(10):
+        run_episode(PROFILE, ProtocolPursuers(PROFILE, spec=A3_SPEC), seed, on_step=check)
+    assert shrunk["seen"]

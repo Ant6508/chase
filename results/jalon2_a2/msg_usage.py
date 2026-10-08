@@ -25,10 +25,15 @@ Usage (A2 contre A1bis) :
 (a) est séparé selon ce que savait le coéquipier : « cible » s'il la voyait, « vide » sinon
 (seuls ses lieux vus vides écartent alors une issue). Tests : permutation appariée par seed.
 
+A3 n'a pas de `candidates` : un message A3 sans `cible` ne dit rien de la cible. Il est
+alors « vrai » par construction, et il ne permet d'écarter aucune issue ; seules les
+mesures « cible » de (a) le concernent.
+
 Depuis la racine du dépôt (rapports : results/jalon2_a2.md, results/jalon2_a2p.md) :
 
     PYTHONPATH=. python results/jalon2_a2/msg_usage.py            # A2 contre A1bis
     PYTHONPATH=. python results/jalon2_a2/msg_usage.py A2p A2 A1bis
+    PYTHONPATH=. python results/jalon2_a2/msg_usage.py A3 A1bis A2
 
 Le premier bras est comparé à chacun des suivants ; les traces sont lues dans
 results/jalon2_<bras>/trace. Écrit aussi examples.jsonl (décisions des bras à canal citées
@@ -50,6 +55,7 @@ from chase.belief import diffuse, observe, observe_prob, propagate
 from chase.config import ChaseConfig
 from chase.env import ChaseEnv, episode_rngs
 from chase.llm.ceiling import ProtocolPursuers, write_message
+from chase.llm.message import A3_SPEC
 from chase.llm.places import Places
 from chase.moves import Move
 from chase.policies import make_policy
@@ -57,7 +63,7 @@ from chase.runner import _percepts, run_episode
 from chase.target import ScriptedTarget
 
 CFG = ChaseConfig().replace(max_steps=60, size=15, n_loops=1, min_loop_len=6, min_spawn_dist=6)
-CHANNEL_ARMS = ("A2", "A2p")
+CHANNEL_ARMS = ("A2", "A2p", "A3")
 
 
 def support(g, places, message):
@@ -155,24 +161,28 @@ def replay(path, c: Counter, lists: dict, arm: str, per_seed: dict, examples: li
                 c["cible_cachée"] += 1
                 c["cible_cachée_inventée"] += m["cible"] is not None
                 # message vrai : la vraie case de la cible reste dans ce que le message laisse possible
-                c["cible_cachée_vrai"] += bool(support(g, places, m)[env.target_pos])
+                if "candidates" in m or m["cible"] is not None:
+                    c["cible_cachée_vrai"] += bool(support(g, places, m)[env.target_pos])
+                else:  # A3 sans `cible` : le message ne dit rien de la cible
+                    c["cible_cachée_vrai"] += 1
                 if m["cible"] is not None and m["cible"] in places.cell_by_name:
                     lists["inventée_distance"].append(
                         float(g.dist[places.cell_by_name[m["cible"]], int(g.index[env.target_pos])]))
                     c["inventée_relais"] += bool(r["message_in"]) and json.loads(r["message_in"])["cible"] == m["cible"]
-                listed = set(m["candidates"]) & set(places.by_name)
-                cover = np.zeros(free.shape, dtype=bool)
-                for name in listed:
-                    for cc in places.by_name[name].cells:
-                        cover[g.cells[cc]] = True
-                lists["couverture_masse"].append(float(prob[i][cover].sum()))
-                lists["couverture_cases"].append(float((bel[i] & cover).sum() / bel[i].sum()))
-                true_places = {pl.name for pl in places.places
-                               if bel[i][g.xy[np.array(pl.cells), 0], g.xy[np.array(pl.cells), 1]].any()}
-                lists["lieux_vrais"].append(len(true_places))
-                lists["lieux_listés"].append(len(listed))
-                lists["lieux_listés_vides"].append(len(listed - true_places))
-                lists["lieux_omis"].append(len(true_places - listed))
+                if "candidates" in m:
+                    listed = set(m["candidates"]) & set(places.by_name)
+                    cover = np.zeros(free.shape, dtype=bool)
+                    for name in listed:
+                        for cc in places.by_name[name].cells:
+                            cover[g.cells[cc]] = True
+                    lists["couverture_masse"].append(float(prob[i][cover].sum()))
+                    lists["couverture_cases"].append(float((bel[i] & cover).sum() / bel[i].sum()))
+                    true_places = {pl.name for pl in places.places
+                                   if bel[i][g.xy[np.array(pl.cells), 0], g.xy[np.array(pl.cells), 1]].any()}
+                    lists["lieux_vrais"].append(len(true_places))
+                    lists["lieux_listés"].append(len(listed))
+                    lists["lieux_listés_vides"].append(len(listed - true_places))
+                    lists["lieux_omis"].append(len(true_places - listed))
             c["je_couvre"] += m.get("je_couvre") is not None
             lists["intention_len"].append(len(m.get("intention") or []))
 
@@ -262,7 +272,12 @@ def scripted_lists(name):
     """Distances en exploration (c), puis territoires et tenailles en phase de capture (d)."""
     sep, terr, between = [], [], []
     for seed in range(30):
-        pol = ProtocolPursuers(CFG) if name == "P2" else make_policy(name, CFG)
+        if name == "P2":
+            pol = ProtocolPursuers(CFG)
+        elif name == "P3":
+            pol = ProtocolPursuers(CFG, spec=A3_SPEC)
+        else:
+            pol = make_policy(name, CFG)
 
         def hook(env, policy):
             vis = env.visibility()
@@ -328,14 +343,16 @@ def main():
                 print(f"cible inventée : relais de la cible reçue {pct(c['inventée_relais'], len(inv))}, "
                       f"distance à la vraie case : moyenne {statistics.mean(inv):.1f}, médiane {statistics.median(inv)}")
             cm = lists["couverture_masse"]
-            print(f"couverture de la masse : moyenne {statistics.mean(cm):.1%}, médiane {statistics.median(cm):.1%}, "
-                  f"complète (>= 99,5 %) {sum(x >= 0.995 for x in cm) / len(cm):.1%}, < 90 % {sum(x < 0.9 for x in cm) / len(cm):.1%}, "
-                  f"< 50 % {sum(x < 0.5 for x in cm) / len(cm):.1%}")
-            print(f"couverture des cases : moyenne {statistics.mean(lists['couverture_cases']):.1%}")
-            for k in ("lieux_vrais", "lieux_listés", "lieux_listés_vides", "lieux_omis"):
-                print(f"{k} : moyenne {statistics.mean(lists[k]):.1f}, médiane {statistics.median(lists[k])}")
+            if cm:  # A2 et A2' seulement : A3 n'a pas de `candidates`
+                print(f"couverture de la masse : moyenne {statistics.mean(cm):.1%}, médiane {statistics.median(cm):.1%}, "
+                      f"complète (>= 99,5 %) {sum(x >= 0.995 for x in cm) / len(cm):.1%}, < 90 % {sum(x < 0.9 for x in cm) / len(cm):.1%}, "
+                      f"< 50 % {sum(x < 0.5 for x in cm) / len(cm):.1%}")
+                print(f"couverture des cases : moyenne {statistics.mean(lists['couverture_cases']):.1%}")
+                for k in ("lieux_vrais", "lieux_listés", "lieux_listés_vides", "lieux_omis"):
+                    print(f"{k} : moyenne {statistics.mean(lists[k]):.1f}, médiane {statistics.median(lists[k])}")
             print("je_couvre renseigné", pct(c["je_couvre"], c["messages"]),
                   f"; intention : {statistics.mean(lists['intention_len']):.1f} lieux en moyenne")
+            print("intention, nombre de lieux :", dict(sorted(Counter(lists["intention_len"]).items())))
         print("(b) seul le coéquipier voyait la cible : rapproche", pct(c["b_rapproche"], c["b_situations"]),
               *(["; message avec cible", pct(c["b_message_cible"], c["b_situations"])] if arm in CHANNEL_ARMS else []))
         dist = lists["c_distance"]
@@ -362,7 +379,7 @@ def main():
     for other in arms[1:]:
         ra, rb, pv = perm_test(seeds_of[arms[0]], seeds_of[other], "dterr")
         print(f"(d) territoire moyen : {arms[0]} {ra:.1f} contre {other} {rb:.1f}, p = {pv:.4f} (permutation appariée par seed)")
-    for name in ("R1", "R2", "P2"):
+    for name in ("R1", "R2", "P2", "P3"):
         dist, terr, between = scripted_lists(name)
         print(f"(c) {name} : {len(dist)} pas, distance moyenne {statistics.mean(dist):.1f}, "
               f"médiane {statistics.median(dist)}, à 3 cases ou moins {sum(x <= 3 for x in dist) / len(dist):.1%}")

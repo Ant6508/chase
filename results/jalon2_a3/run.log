@@ -37,3 +37,78 @@ Paramètres du jeu :
   "track_threshold": 8
 }
 ```
+reprise : 8 épisode(s) déjà dans /workspace/results/a3/journal.jsonl, 22 à jouer
+seed 15: capturé=True pas=10 temps=2076.5s latence_moy=103726ms replis=0 msg_moy=24
+seed 8: capturé=True pas=38 temps=8222.7s latence_moy=108158ms replis=0 msg_moy=22
+seed 12: capturé=True pas=52 temps=8505.9s latence_moy=81761ms replis=0 msg_moy=22
+seed 13: capturé=True pas=42 temps=9535.0s latence_moy=108252ms replis=0 msg_moy=23
+seed 10: capturé=False pas=60 temps=10184.1s latence_moy=84843ms replis=0 msg_moy=25
+seed 9: capturé=False pas=60 temps=12896.5s latence_moy=103569ms replis=0 msg_moy=22
+seed 16: capturé=False pas=60 temps=11778.4s latence_moy=98143ms replis=0 msg_moy=23
+seed 17: capturé=True pas=26 temps=6133.9s latence_moy=117946ms replis=0 msg_moy=23
+seed 11: capturé=False pas=60 temps=15185.8s latence_moy=126521ms replis=0 msg_moy=22
+seed 14: capturé=False pas=60 temps=15551.5s latence_moy=125757ms replis=0 msg_moy=21
+seed 18: capturé=True pas=37 temps=8917.3s latence_moy=114451ms replis=0 msg_moy=23
+seed 25: capturé=True pas=24 temps=4512.0s latence_moy=93990ms replis=0 msg_moy=23
+seed 20: capturé=False pas=60 temps=10236.2s latence_moy=84368ms replis=0 msg_moy=22
+seed 26: capturé=True pas=27 temps=5847.7s latence_moy=108278ms replis=0 msg_moy=21
+seed 19: capturé=False pas=60 temps=14865.4s latence_moy=123866ms replis=0 msg_moy=22
+seed 23: capturé=False pas=60 temps=11235.6s latence_moy=93620ms replis=0 msg_moy=23
+seed 21: capturé=False pas=60 temps=13377.7s latence_moy=111469ms replis=0 msg_moy=21
+seed 22: capturé=False pas=60 temps=12969.1s latence_moy=105477ms replis=0 msg_moy=21
+seed 24: capturé=False pas=60 temps=11692.9s latence_moy=97430ms replis=0 msg_moy=22
+seed 27: capturé=True pas=51 temps=8523.6s latence_moy=83553ms replis=0 msg_moy=23
+seed 28: capturé=False pas=60 temps=9827.2s latence_moy=80460ms replis=0 msg_moy=21
+seed 29: capturé=False pas=60 temps=7549.0s latence_moy=59787ms replis=0 msg_moy=22
+Bras A3. Seeds 0..29 (30 épisodes), T = 60.
+
+| Seed | Capture | Pas | Confinement à T | Confinement moyen | Temps mural (s) | Latence moy. (ms) | Replis | Positions/message |
+|---|---|---|---|---|---|---|---|---|
+| 0 | oui | 21 | 0.000 | 0.158 | 4479.5 | 96681 | 0 | 23 |
+| 1 | oui | 19 | 0.000 | 0.148 | 3525.9 | 92383 | 0 | 23 |
+| 2 | oui | 27 | 0.000 | 0.037 | 4545.0 | 83881 | 0 | 23 |
+| 3 | oui | 47 | 0.000 | 0.333 | 7677.6 | 79238 | 0 | 22 |
+| 4 | oui | 31 | 0.000 | 0.055 | 5101.0 | 82025 | 0 | 22 |
+| 5 | non | 60 | 0.010 | 0.181 | 7340.2 | 61036 | 0 | 24 |
+| 6 | oui | 38 | 0.000 | 0.164 | 6157.5 | 80815 | 0 | 23 |
+| 7 | oui | 50 | 0.000 | 0.344 | 7951.3 | 79353 | 0 | 21 |
+| 8 | oui | 38 | 0.000 | 0.191 | 8222.7 | 108158 | 0 | 22 |
+| 9 | non | 60 | 0.010 | 0.462 | 12896.5 | 103569 | 0 | 22 |
+| 10 | non | 60 | 0.010 | 0.213 | 10184.1 | 84843 | 0 | 25 |
+| 11 | non | 60 | 0.857 | 0.786 | 15185.8 | 126521 | 0 | 22 |
+| 12 | oui | 52 | 0.000 | 0.257 | 8505.9 | 81761 | 0 | 22 |
+| 13 | oui | 42 | 0.000 | 0.249 | 9535.0 | 108252 | 0 | 23 |
+| 14 | non | 60 | 0.684 | 0.724 | 15551.5 | 125757 | 0 | 21 |
+| 15 | oui | 10 | 0.000 | 0.028 | 2076.5 | 103726 | 0 | 24 |
+| 16 | non | 60 | 0.010 | 0.394 | 11778.4 | 98143 | 0 | 23 |
+| 17 | oui | 26 | 0.000 | 0.176 | 6133.9 | 117946 | 0 | 23 |
+| 18 | oui | 37 | 0.000 | 0.172 | 8917.3 | 114451 | 0 | 23 |
+| 19 | non | 60 | 0.520 | 0.752 | 14865.4 | 123866 | 0 | 22 |
+| 20 | non | 60 | 0.061 | 0.398 | 10236.2 | 84368 | 0 | 22 |
+| 21 | non | 60 | 0.776 | 0.817 | 13377.7 | 111469 | 0 | 21 |
+| 22 | non | 60 | 0.051 | 0.463 | 12969.1 | 105477 | 0 | 21 |
+| 23 | non | 60 | 0.010 | 0.153 | 11235.6 | 93620 | 0 | 23 |
+| 24 | non | 60 | 0.010 | 0.403 | 11692.9 | 97430 | 0 | 22 |
+| 25 | oui | 24 | 0.000 | 0.056 | 4512.0 | 93990 | 0 | 23 |
+| 26 | oui | 27 | 0.000 | 0.157 | 5847.7 | 108278 | 0 | 21 |
+| 27 | oui | 51 | 0.000 | 0.309 | 8523.6 | 83553 | 0 | 23 |
+| 28 | non | 60 | 0.776 | 0.796 | 9827.2 | 80460 | 0 | 21 |
+| 29 | non | 60 | 0.010 | 0.216 | 7549.0 | 59787 | 0 | 22 |
+
+Paramètres du jeu :
+
+```json
+{
+  "size": 15,
+  "n_loops": 1,
+  "min_loop_len": 6,
+  "n_pursuers": 2,
+  "view_size": 5,
+  "min_spawn_dist": 6,
+  "max_steps": 60,
+  "target_memory": 6,
+  "target_cycle_bias": 0.5,
+  "comm_delay": 1,
+  "track_threshold": 8
+}
+```
